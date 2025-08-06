@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chamada com QR Code</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <link
+    href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+    rel="stylesheet"
+  />
+</head>
+<body class="bg-gray-100 p-4">
+  <!-- Tela do Professor -->
+  <div id="professor" class="max-w-xl mx-auto bg-white p-6 rounded shadow">
+    <h1 class="text-2xl font-bold mb-4">Painel do Professor</h1>
+
+    <input
+      id="nomeChamada"
+      type="text"
+      placeholder="Nome da chamada"
+      class="border p-2 w-full mb-2"
+      autocomplete="off"
+    />
+    <button onclick="iniciarChamada()" class="bg-blue-500 text-white px-4 py-2 rounded">
+      Iniciar Chamada
+    </button>
+
+    <div id="qrcode" class="my-4"></div>
+
+    <h2 class="text-xl font-semibold mt-6 mb-2">Presenças:</h2>
+    <ul id="listaPresencas" class="list-disc pl-5"></ul>
+
+    <button
+      id="botaoEncerrar"
+      onclick="encerrarChamada()"
+      class="bg-red-600 text-white px-4 py-2 rounded mt-4"
+      style="display:none;"
+    >
+      Encerrar Chamada
+    </button>
+
+    <button
+      id="botaoExportExcel"
+      onclick="exportarParaExcel()"
+      class="bg-green-500 text-white px-4 py-2 rounded mt-4"
+      style="display:none;"
+    >
+      Exportar para Excel
+    </button>
+    <button
+      id="botaoExportWord"
+      onclick="exportarParaWord()"
+      class="bg-purple-500 text-white px-4 py-2 rounded mt-2"
+      style="display:none;"
+    >
+      Exportar para Word
+    </button>
+  </div>
+
+  <!-- Tela do Aluno -->
+  <div id="aluno" class="hidden max-w-xl mx-auto bg-white p-6 rounded shadow">
+    <h1 class="text-2xl font-bold mb-4">Registro de Presença</h1>
+
+    <input
+      id="nomeAluno"
+      type="text"
+      placeholder="Seu nome"
+      class="border p-2 w-full mb-2"
+      autocomplete="off"
+    />
+    <input
+      id="lgAluno"
+      type="text"
+      placeholder="Seu LG"
+      class="border p-2 w-full mb-2"
+      autocomplete="off"
+    />
+    <button onclick="enviarPresenca()" class="bg-blue-500 text-white px-4 py-2 rounded">
+      Enviar Presença
+    </button>
+  </div>
+
+  <script>
+    let presencas = [];
+    let chamadaAtiva = false;
+    let chamadaNome = "";
+    let chamadaEncerrada = false;
+    const distanciaMaxima = 50; // metros
+    let localProfessor = null;
+
+    // Inicia a chamada e gera QR Code
+    function iniciarChamada() {
+      const nome = document.getElementById("nomeChamada").value.trim();
+      if (!nome) {
+        alert("Por favor, informe o nome da chamada.");
+        return;
+      }
+
+      chamadaAtiva = true;
+      chamadaEncerrada = false;
+      chamadaNome = nome;
+
+      if (!navigator.geolocation) {
+        alert("Geolocalização não suportada.");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          localProfessor = {
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+          };
+
+          const urlParams = new URLSearchParams();
+          urlParams.set("chamada", chamadaNome);
+          urlParams.set("plat", localProfessor.lat);
+          urlParams.set("plon", localProfessor.lon);
+          const url = `${window.location.origin}${window.location.pathname}?${urlParams.toString()}`;
+
+          QRCode.toDataURL(url, { width: 200 })
+            .then((dataUrl) => {
+              const container = document.getElementById("qrcode");
+              container.innerHTML = "";
+              const img = document.createElement("img");
+              img.src = dataUrl;
+              img.alt = "QR Code para chamada";
+              container.appendChild(img);
+
+              // Mostrar botão de encerrar chamada
+              document.getElementById("botaoEncerrar").style.display = "inline-block";
+              // Esconder botão iniciar e input para evitar nova chamada
+              document.getElementById("nomeChamada").disabled = true;
+              document.querySelector('button[onclick="iniciarChamada()"]').disabled = true;
+            })
+            .catch((err) => {
+              console.error("Erro ao gerar QR Code:", err);
+              alert("Erro ao gerar QR Code.");
+            });
+        },
+        (err) => {
+          alert("Não foi possível obter sua localização.");
+          console.error(err);
+        }
+      );
+    }
+
+    // Calcula distância entre duas coordenadas
+    function calcularDistancia(lat1, lon1, lat2, lon2) {
+      const R = 6371e3;
+      const rad = Math.PI / 180;
+      const φ1 = lat1 * rad;
+      const φ2 = lat2 * rad;
+      const Δφ = (lat2 - lat1) * rad;
+      const Δλ = (lon2 - lon1) * rad;
+
+      const a =
+        Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    // Aluno envia presença
+    function enviarPresenca() {
+      if (chamadaEncerrada) {
+        alert("A chamada foi encerrada.");
+        return;
+      }
+
+      const nome = document.getElementById("nomeAluno").value.trim();
+      const lg = document.getElementById("lgAluno").value.trim();
+
+      if (!nome || !lg) {
+        alert("Preencha todos os campos.");
+        return;
+      }
+
+      if (!localProfessor) {
+        alert("Erro interno: localização do professor não definida.");
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        alert("Geolocalização não suportada.");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const latAluno = pos.coords.latitude;
+          const lonAluno = pos.coords.longitude;
+          const distancia = calcularDistancia(
+            latAluno,
+            lonAluno,
+            localProfessor.lat,
+            localProfessor.lon
+          );
+
+          if (distancia > distanciaMaxima) {
+            alert("Você está muito longe para registrar a presença.");
+            return;
+          }
+
+          if (presencas.some((p) => p.lg === lg)) {
+            alert("Presença já registrada para este LG.");
+            return;
+          }
+
+          presencas.push({ nome, lg });
+          atualizarListaPresencas();
+          alert("Presença registrada com sucesso!");
+
+          // Bloqueia nova marcação para o mesmo aluno (na mesma aba)
+          document.getElementById("nomeAluno").disabled = true;
+          document.getElementById("lgAluno").disabled = true;
+          document.querySelector("#aluno button").disabled = true;
+        },
+        (err) => {
+          alert("Não foi possível obter sua localização.");
+          console.error(err);
+        }
+      );
+    }
+
+    // Atualiza a lista de presenças na tela do professor
+    function atualizarListaPresencas() {
+      const lista = document.getElementById("listaPresencas");
+      lista.innerHTML = "";
+
+      presencas.forEach(({ nome, lg }) => {
+        const li = document.createElement("li");
+        li.textContent = `${nome} (LG: ${lg})`;
+        lista.appendChild(li);
+      });
+    }
+
+    // Encerra a chamada
+    function encerrarChamada() {
+      chamadaEncerrada = true;
+      alert("Chamada encerrada! Não será mais possível registrar presenças.");
+
+      // Esconde botão encerrar, mostra botões de exportar
+      document.getElementById("botaoEncerrar").style.display = "none";
+      document.getElementById("botaoExportExcel").style.display = "inline-block";
+      document.getElementById("botaoExportWord").style.display = "inline-block";
+    }
+
+    // Exporta para CSV (Excel)
+    function exportarParaExcel() {
+      if (presencas.length === 0) {
+        alert("Nenhuma presença para exportar.");
+        return;
+      }
+
+      let csv =
+        "Nome,LG\n" +
+        presencas.map((p) => `"${p.nome}","${p.lg}"`).join("\n");
+
+      let blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      let url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${chamadaNome}_presencas.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Exporta para Word
+    function exportarParaWord() {
+      if (presencas.length === 0) {
+        alert("Nenhuma presença para exportar.");
+        return;
+      }
+
+      let html = `<h1>Presenças - ${chamadaNome}</h1><ul>` +
+        presencas
+          .map((p) => `<li>${p.nome} (LG: ${p.lg})</li>`)
+          .join("") +
+        "</ul>";
+
+      let blob = new Blob([html], { type: "application/msword" });
+      let url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${chamadaNome}_presencas.doc`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Verifica se estamos na página do aluno (URL com parâmetros)
+    function verificarURL() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has("chamada")) {
+        document.getElementById("professor").classList.add("hidden");
+        document.getElementById("aluno").classList.remove("hidden");
+
+        chamadaNome = params.get("chamada");
+        localProfessor = {
+          lat: parseFloat(params.get("plat")),
+          lon: parseFloat(params.get("plon")),
+        };
+      }
+    }
+
+    verificarURL();
+  </script>
+</body>
+</html>
