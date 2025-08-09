@@ -36,7 +36,6 @@
         <button id="close" style="background:#e53935;color:#fff">Fechar Chamada</button>
         <button id="new" class="primary">Nova Chamada</button>
       </div>
-
       <div id="exports" class="hidden" style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
         <a id="dlXlsx" class="primary" href="#">Baixar Excel</a>
         <a id="dlDocx" class="primary" href="#">Baixar Word</a>
@@ -50,9 +49,10 @@
     </div>
   </div>
 
-  <!-- Socket.IO client via CDN (garantido) -->
+  <!-- ÚNICO script externo: Socket.IO (CDN) -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
 
+  <!-- Script da página (inline, sem require/module) -->
   <script>
     const startBtn = document.getElementById('start');
     const lessonInput = document.getElementById('lesson');
