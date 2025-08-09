@@ -14,7 +14,7 @@
     button { padding: 10px 16px; border-radius: 8px; border: 0; cursor: pointer; }
     button.primary { background: black; color: white; }
     .hidden { display:none; }
-    a.primary, .btnlike { padding: 10px 16px; border-radius: 8px; background: black; color: white; text-decoration: none; display: inline-block; cursor: pointer; }
+    a.primary { padding: 10px 16px; border-radius: 8px; background: black; color: white; text-decoration: none; display: inline-block; }
   </style>
 </head>
 <body>
@@ -36,9 +36,10 @@
         <button id="close" style="background:#e53935;color:#fff">Fechar Chamada</button>
         <button id="new" class="primary">Nova Chamada</button>
       </div>
+
       <div id="exports" class="hidden" style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
-        <span id="dlXlsx" class="btnlike">Baixar Excel</span>
-        <span id="dlDocx" class="btnlike">Baixar Word</span>
+        <a id="dlXlsx" class="primary" href="#">Baixar Excel</a>
+        <a id="dlDocx" class="primary" href="#">Baixar Word</a>
       </div>
     </div>
 
@@ -49,7 +50,9 @@
     </div>
   </div>
 
-  <script src="/socket.io/socket.io.js"></script>
+  <!-- Socket.IO client via CDN (garantido) -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+
   <script>
     const startBtn = document.getElementById('start');
     const lessonInput = document.getElementById('lesson');
@@ -75,9 +78,7 @@
         lessonName: lessonInput.value.trim() || ''
       }));
     }
-    function clearState() {
-      localStorage.removeItem(LS_KEY);
-    }
+    function clearState() { localStorage.removeItem(LS_KEY); }
     function loadState() {
       try { return JSON.parse(localStorage.getItem(LS_KEY) || 'null'); }
       catch { return null; }
@@ -136,8 +137,8 @@
 
       if (snap.active === false) {
         exportsDiv.classList.remove('hidden');
-        dlXlsx.onclick = () => window.open('/api/sessions/' + sessionId + '/export.xlsx', '_self');
-        dlDocx.onclick = () => window.open('/api/sessions/' + sessionId + '/export.docx', '_self');
+        dlXlsx.href = '/api/sessions/' + sessionId + '/export.xlsx';
+        dlDocx.href = '/api/sessions/' + sessionId + '/export.docx';
       }
       connectSocketAndListen();
     }
@@ -186,8 +187,8 @@
       const r = await fetch('/api/sessions/' + sessionId + '/close', { method: 'POST' });
       if (!r.ok) { alert('Não foi possível fechar a chamada'); return; }
       exportsDiv.classList.remove('hidden');
-      dlXlsx.onclick = () => window.open('/api/sessions/' + sessionId + '/export.xlsx', '_self');
-      dlDocx.onclick = () => window.open('/api/sessions/' + sessionId + '/export.docx', '_self');
+      dlXlsx.href = '/api/sessions/' + sessionId + '/export.xlsx';
+      dlDocx.href = '/api/sessions/' + sessionId + '/export.docx';
       saveState();
     };
 
@@ -225,21 +226,6 @@
         alert('Precisamos da sua localização para iniciar a nova chamada.');
       }
     };
-
-    // depois de exportar, o servidor apaga a sessão; vamos conferir e limpar
-    async function checkIfSessionStillExists() {
-      if (!sessionId) return;
-      const r = await fetch('/api/sessions/' + sessionId);
-      if (r.status === 404) {
-        clearState();
-        clearUI();
-        live.classList.add('hidden');
-        if (socket) socket.disconnect();
-        alert('Chamada finalizada e dados apagados.');
-      }
-    }
-    dlXlsx && dlXlsx.addEventListener('click', () => setTimeout(checkIfSessionStillExists, 3000));
-    dlDocx && dlDocx.addEventListener('click', () => setTimeout(checkIfSessionStillExists, 3000));
   </script>
 </body>
 </html>

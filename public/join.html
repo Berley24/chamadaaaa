@@ -9,7 +9,7 @@
     .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; max-width: 420px; }
     input { width: 100%; padding: 10px; margin: 8px 0; }
     button { padding: 10px 16px; border-radius: 8px; border: 0; background: black; color: white; cursor: pointer; width: 100%; }
-    .msg { margin-top: 12px; }
+    .msg { margin-top: 12px; color:#c00; }
   </style>
 </head>
 <body>
@@ -35,7 +35,6 @@
 
     const KEY = 'qr-attendance:aluno:' + id;
 
-    // se já enviou nesta sessão, bloqueia visualmente
     const already = localStorage.getItem(KEY);
     if (already === '1') {
       sendBtn.disabled = true;
@@ -65,16 +64,15 @@
         });
         const data = await resp.json();
         if (!resp.ok) {
-          msg.textContent = data.error || 'Erro';
+          msg.textContent = data.error || `Erro (${resp.status})`;
           if (resp.status === 409) {
-            // trava no cliente também
             localStorage.setItem(KEY, '1');
             sendBtn.disabled = true;
           }
         } else {
           msg.textContent = 'Presença registrada! Você já pode fechar esta página.';
           sendBtn.disabled = true;
-          localStorage.setItem(KEY, '1'); // impede nova tentativa neste navegador
+          localStorage.setItem(KEY, '1');
         }
       } catch (e) {
         console.error(e);
