@@ -3,35 +3,60 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Chamada | Aluno</title>
+  <title>Chamada | Professor</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; max-width: 420px; }
-    input { width: 100%; padding: 10px; margin: 8px 0; }
-    button { padding: 10px 16px; border-radius: 8px; border: 0; background: black; color: white; cursor: pointer; width: 100%; }
-    .msg { margin-top: 12px; }
+    .row { display: flex; gap: 24px; flex-wrap: wrap; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; min-width: 280px; }
+    #qr { width: 256px; height: 256px; border: 1px dashed #999; display:flex; align-items:center; justify-content:center; }
+    ul { list-style: none; padding: 0; }
+    li { padding: 6px 0; border-bottom: 1px solid #eee; }
+    button { padding: 10px 16px; border-radius: 8px; border: 0; cursor: pointer; }
+    button.primary { background: black; color: white; }
+    .hidden { display:none; }
   </style>
 </head>
 <body>
-  <h2>Confirmar Presença</h2>
+  <h1>Chamada (Professor)</h1>
   <div class="card">
-    <div id="form">
-      <label>Nome completo</label>
-      <input id="name" placeholder="Seu nome" />
-      <label>RGM</label>
-      <input id="rgm" placeholder="Seu RGM" />
-      <button id="send">Enviar</button>
-      <div class="msg" id="msg"></div>
+    <label>Nome da aula/evento</label><br/>
+    <input id="lesson" placeholder="Ex: Aula de Matemática" style="width: 320px; padding:8px;"/>
+    <button id="start" class="primary">Iniciar Chamada</button>
+  </div>
+
+  <div id="live" class="row hidden">
+    <div class="card">
+      <h3>QR Code</h3>
+      <div id="qr">QR...</div>
+      <p><small>Alunos devem escanear o QR e permitir localização</small></p>
+      <p id="joinLink"></p>
+      <button id="close" style="background:#e53935;color:#fff">Fechar Chamada</button>
+    </div>
+    <div class="card" style="flex:1">
+      <h3>Presentes</h3>
+      <ul id="list"></ul>
+      <p><b>Total:</b> <span id="count">0</span></p>
+      <div id="exports" class="hidden">
+        <a id="dlXlsx" class="primary" href="#">Baixar Excel</a>
+        <a id="dlDocx" class="primary" href="#">Baixar Word</a>
+      </div>
     </div>
   </div>
 
+  <script src="/socket.io/socket.io.js"></script>
   <script>
-    const params = new URLSearchParams(location.search);
-    const id = params.get('id');
-    const sendBtn = document.getElementById('send');
-    const msg = document.getElementById('msg');
-    const nameI = document.getElementById('name');
-    const rgmI = document.getElementById('rgm');
+    const startBtn = document.getElementById('start');
+    const lessonInput = document.getElementById('lesson');
+    const live = document.getElementById('live');
+    const qrDiv = document.getElementById('qr');
+    const list = document.getElementById('list');
+    const count = document.getElementById('count');
+    const closeBtn = document.getElementById('close');
+    const joinLinkP = document.getElementById('joinLink');
+    const exportsDiv = document.getElementById('exports');
+    const dlXlsx = document.getElementById('dlXlsx');
+    const dlDocx = document.getElementById('dlDocx');
+    let sessionId = null;
 
     async function getLocation() {
       return new Promise((resolve, reject) => {
@@ -43,28 +68,49 @@
       });
     }
 
-    sendBtn.onclick = async () => {
-      const name = nameI.value.trim();
-      const rgm = rgmI.value.trim();
-      if (!name || !rgm) { msg.textContent = 'Preencha nome e RGM'; return; }
+    startBtn.onclick = async () => {
+      const name = lessonInput.value.trim();
+      if (!name) { alert('Digite o nome da aula'); return; }
       try {
         const loc = await getLocation();
-        const resp = await fetch('/api/sessions/' + id + '/join', {
+        const resp = await fetch('/api/sessions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, rgm, lat: loc.lat, lng: loc.lng })
+          body: JSON.stringify({ name, lat: loc.lat, lng: loc.lng })
         });
         const data = await resp.json();
-        if (!resp.ok) {
-          msg.textContent = data.error || 'Erro';
-        } else {
-          msg.textContent = 'Presença registrada! Você já pode fechar esta página.';
-          sendBtn.disabled = true;
-        }
+        if (!resp.ok) { alert(data.error || 'Erro'); return; }
+        sessionId = data.id;
+        live.classList.remove('hidden');
+        qrDiv.innerHTML = `<img alt="QR" src="${data.qrPng}" width="256" height="256"/>`;
+        joinLinkP.innerHTML = `<small>Link: <a href="${data.joinUrl}" target="_blank">${data.joinUrl}</a></small>`;
+
+        const socket = io();
+        socket.emit('host:join', sessionId);
+        socket.on('attendee:new', (a) => addAttendee(a));
+
+        const snap = await fetch('/api/sessions/' + sessionId).then(r=>r.json());
+        for (const a of snap.attendees) addAttendee(a);
       } catch (e) {
         console.error(e);
-        msg.textContent = 'Precisamos da sua localização para enviar.';
+        alert('Precisamos da sua localização para iniciar.');
       }
+    };
+
+    function addAttendee(a) {
+      const li = document.createElement('li');
+      const dt = new Date(a.time);
+      li.textContent = `${a.name} — ${a.rgm} (${dt.toLocaleTimeString()})`;
+      list.prepend(li);
+      count.textContent = Number(count.textContent) + 1;
+    }
+
+    closeBtn.onclick = async () => {
+      if (!sessionId) return;
+      await fetch('/api/sessions/' + sessionId + '/close', { method: 'POST' });
+      exportsDiv.classList.remove('hidden');
+      dlXlsx.href = '/api/sessions/' + sessionId + '/export.xlsx';
+      dlDocx.href = '/api/sessions/' + sessionId + '/export.docx';
     };
   </script>
 </body>
