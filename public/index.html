@@ -17,7 +17,6 @@
     a.primary { padding: 10px 16px; border-radius: 8px; background: black; color: white; text-decoration: none; display: inline-block; }
   </style>
 </head>
-<!-- ... (cabeçalho e estilos iguais) ... -->
 <body>
   <h1>Chamada (Professor)</h1>
 
@@ -86,12 +85,10 @@
       });
     }
 
-    function clearUI(){
+    // >>> só limpa a lista/contador (não mexe no QR nem nos botões)
+    function clearList(){
       list.innerHTML = '';
       count.textContent = '0';
-      exportsDiv.classList.add('hidden');
-      qrDiv.innerHTML = 'QR...';
-      joinLinkP.innerHTML = '';
     }
 
     function addAttendee(a){
@@ -112,16 +109,21 @@
     async function hydrateFromSnapshot(){
       const snapRes = await fetch('/api/sessions/' + sessionId);
       if (!snapRes.ok) {
-        clearState(); clearUI(); live.classList.add('hidden'); return;
+        clearState();
+        clearList();
+        exportsDiv.classList.add('hidden');
+        live.classList.add('hidden');
+        return;
       }
       const snap = await snapRes.json();
       live.classList.remove('hidden');
       lessonInput.value = snap.name || '';
 
+      // mantém o QR existente — não sobrescreve
       const joinUrl = `${location.origin}/join.html?id=${snap.id}`;
       joinLinkP.innerHTML = `<small>Link: <a href="${joinUrl}" target="_blank">${joinUrl}</a></small>`;
 
-      clearUI();
+      clearList();
       for (const a of snap.attendees) addAttendee(a);
 
       if (snap.active === false) {
@@ -151,12 +153,16 @@
 
         sessionId = data.id; saveState();
         live.classList.remove('hidden');
+
+        // desenha o QR uma vez e NÃO apagamos mais
         qrDiv.innerHTML = `<img alt="QR" src="${data.qrPng}" width="256" height="256"/>`;
         joinLinkP.innerHTML = `<small>Link: <a href="${data.joinUrl}" target="_blank">${data.joinUrl}</a></small>`;
+
         connectSocketAndListen();
 
         const snap = await fetch('/api/sessions/' + sessionId).then(r=>r.json());
-        clearUI(); for (const a of snap.attendees) addAttendee(a);
+        clearList();
+        for (const a of snap.attendees) addAttendee(a);
       } catch(e){ console.error(e); alert('Precisamos da sua localização para iniciar.'); }
     };
 
@@ -183,27 +189,31 @@
         const data = await resp.json();
         if (!resp.ok) { alert(data.error || 'Erro'); return; }
 
-        clearUI();
+        // não resetamos o QR até receber o novo
         sessionId = data.id; lessonInput.value = name; saveState();
         live.classList.remove('hidden');
         qrDiv.innerHTML = `<img alt="QR" src="${data.qrPng}" width="256" height="256"/>`;
         joinLinkP.innerHTML = `<small>Link: <a href="${data.joinUrl}" target="_blank">${data.joinUrl}</a></small>`;
+
         connectSocketAndListen();
 
         const snap = await fetch('/api/sessions/' + sessionId).then(r=>r.json());
-        clearUI(); for (const a of snap.attendees) addAttendee(a);
+        clearList();
+        for (const a of snap.attendees) addAttendee(a);
       } catch(e){ console.error(e); alert('Precisamos da sua localização para iniciar a nova chamada.'); }
     };
 
-    // ENCERRAR E LIMPAR (apaga do servidor)
     purgeBtn.onclick = async ()=>{
       if (!sessionId) return;
       if (!confirm('Tem certeza? Isso apaga todos os dados desta chamada do servidor.')) return;
       const r = await fetch('/api/sessions/' + sessionId + '/purge', { method:'POST' });
       if (!r.ok) { alert('Não foi possível limpar.'); return; }
       clearState();
-      clearUI();
+      clearList();
+      exportsDiv.classList.add('hidden');
       live.classList.add('hidden');
+      qrDiv.innerHTML = 'QR...';
+      joinLinkP.innerHTML = '';
       alert('Sessão encerrada e limpa.');
     };
   </script>
