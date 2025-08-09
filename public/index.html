@@ -14,10 +14,12 @@
     button { padding: 10px 16px; border-radius: 8px; border: 0; cursor: pointer; }
     button.primary { background: black; color: white; }
     .hidden { display:none; }
+    a.primary { padding: 10px 16px; border-radius: 8px; background: black; color: white; text-decoration: none; display: inline-block; }
   </style>
 </head>
 <body>
   <h1>Chamada (Professor)</h1>
+
   <div class="card">
     <label>Nome da aula/evento</label><br/>
     <input id="lesson" placeholder="Ex: Aula de Matemática" style="width: 320px; padding:8px;"/>
@@ -30,13 +32,17 @@
       <div id="qr">QR...</div>
       <p><small>Alunos devem escanear o QR e permitir localização</small></p>
       <p id="joinLink"></p>
-      <button id="close" style="background:#e53935;color:#fff">Fechar Chamada</button>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button id="close" style="background:#e53935;color:#fff">Fechar Chamada</button>
+        <button id="new" class="primary">Nova Chamada</button>
+      </div>
     </div>
+
     <div class="card" style="flex:1">
       <h3>Presentes</h3>
       <ul id="list"></ul>
       <p><b>Total:</b> <span id="count">0</span></p>
-      <div id="exports" class="hidden">
+      <div id="exports" class="hidden" style="display:flex; gap:8px; flex-wrap:wrap;">
         <a id="dlXlsx" class="primary" href="#">Baixar Excel</a>
         <a id="dlDocx" class="primary" href="#">Baixar Word</a>
       </div>
@@ -52,11 +58,13 @@
     const list = document.getElementById('list');
     const count = document.getElementById('count');
     const closeBtn = document.getElementById('close');
+    const newBtn = document.getElementById('new');
     const joinLinkP = document.getElementById('joinLink');
     const exportsDiv = document.getElementById('exports');
     const dlXlsx = document.getElementById('dlXlsx');
     const dlDocx = document.getElementById('dlDocx');
     let sessionId = null;
+    let socket = null;
 
     async function getLocation() {
       return new Promise((resolve, reject) => {
@@ -68,9 +76,26 @@
       });
     }
 
+    function clearUI() {
+      list.innerHTML = '';
+      count.textContent = '0';
+      exportsDiv.classList.add('hidden');
+      qrDiv.innerHTML = 'QR...';
+      joinLinkP.innerHTML = '';
+    }
+
+    function addAttendee(a) {
+      const li = document.createElement('li');
+      const dt = new Date(a.time);
+      li.textContent = `${a.name} — ${a.rgm} (${dt.toLocaleTimeString()})`;
+      list.prepend(li);
+      count.textContent = Number(count.textContent) + 1;
+    }
+
     startBtn.onclick = async () => {
       const name = lessonInput.value.trim();
       if (!name) { alert('Digite o nome da aula'); return; }
+
       try {
         const loc = await getLocation();
         const resp = await fetch('/api/sessions', {
@@ -80,12 +105,13 @@
         });
         const data = await resp.json();
         if (!resp.ok) { alert(data.error || 'Erro'); return; }
+
         sessionId = data.id;
         live.classList.remove('hidden');
         qrDiv.innerHTML = `<img alt="QR" src="${data.qrPng}" width="256" height="256"/>`;
         joinLinkP.innerHTML = `<small>Link: <a href="${data.joinUrl}" target="_blank">${data.joinUrl}</a></small>`;
 
-        const socket = io();
+        socket = io();
         socket.emit('host:join', sessionId);
         socket.on('attendee:new', (a) => addAttendee(a));
 
@@ -97,20 +123,48 @@
       }
     };
 
-    function addAttendee(a) {
-      const li = document.createElement('li');
-      const dt = new Date(a.time);
-      li.textContent = `${a.name} — ${a.rgm} (${dt.toLocaleTimeString()})`;
-      list.prepend(li);
-      count.textContent = Number(count.textContent) + 1;
-    }
-
     closeBtn.onclick = async () => {
       if (!sessionId) return;
       await fetch('/api/sessions/' + sessionId + '/close', { method: 'POST' });
-      exportsDiv.classList.remove('hidden');
+      exportsDiv.classList.remove('hidden'); // mostra opções de download (que apagam a sessão após baixar)
       dlXlsx.href = '/api/sessions/' + sessionId + '/export.xlsx';
       dlDocx.href = '/api/sessions/' + sessionId + '/export.docx';
+    };
+
+    newBtn.onclick = async () => {
+      const defaultName = lessonInput.value.trim() || '';
+      const name = prompt('Nome da aula/evento da nova chamada:', defaultName);
+      if (!name) return;
+
+      try {
+        const loc = await getLocation();
+        const resp = await fetch('/api/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, lat: loc.lat, lng: loc.lng })
+        });
+        const data = await resp.json();
+        if (!resp.ok) { alert(data.error || 'Erro'); return; }
+
+        // zera UI e inicia nova sessão
+        clearUI();
+        sessionId = data.id;
+        lessonInput.value = name;
+        live.classList.remove('hidden');
+        qrDiv.innerHTML = `<img alt="QR" src="${data.qrPng}" width="256" height="256"/>`;
+        joinLinkP.innerHTML = `<small>Link: <a href="${data.joinUrl}" target="_blank">${data.joinUrl}</a></small>`;
+
+        if (socket) socket.disconnect();
+        socket = io();
+        socket.emit('host:join', sessionId);
+        socket.on('attendee:new', (a) => addAttendee(a));
+
+        const snap = await fetch('/api/sessions/' + sessionId).then(r=>r.json());
+        for (const a of snap.attendees) addAttendee(a);
+      } catch (e) {
+        console.error(e);
+        alert('Precisamos da sua localização para iniciar a nova chamada.');
+      }
     };
   </script>
 </body>
