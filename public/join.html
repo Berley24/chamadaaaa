@@ -33,6 +33,15 @@
     const nameI = document.getElementById('name');
     const rgmI = document.getElementById('rgm');
 
+    const KEY = 'qr-attendance:aluno:' + id;
+
+    // se já enviou nesta sessão, bloqueia visualmente
+    const already = localStorage.getItem(KEY);
+    if (already === '1') {
+      sendBtn.disabled = true;
+      msg.textContent = 'Você já registrou presença nesta chamada.';
+    }
+
     async function getLocation() {
       return new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
@@ -57,9 +66,15 @@
         const data = await resp.json();
         if (!resp.ok) {
           msg.textContent = data.error || 'Erro';
+          if (resp.status === 409) {
+            // trava no cliente também
+            localStorage.setItem(KEY, '1');
+            sendBtn.disabled = true;
+          }
         } else {
           msg.textContent = 'Presença registrada! Você já pode fechar esta página.';
           sendBtn.disabled = true;
+          localStorage.setItem(KEY, '1'); // impede nova tentativa neste navegador
         }
       } catch (e) {
         console.error(e);

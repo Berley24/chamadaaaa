@@ -14,7 +14,7 @@
     button { padding: 10px 16px; border-radius: 8px; border: 0; cursor: pointer; }
     button.primary { background: black; color: white; }
     .hidden { display:none; }
-    a.primary { padding: 10px 16px; border-radius: 8px; background: black; color: white; text-decoration: none; display: inline-block; }
+    a.primary, .btnlike { padding: 10px 16px; border-radius: 8px; background: black; color: white; text-decoration: none; display: inline-block; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -36,16 +36,16 @@
         <button id="close" style="background:#e53935;color:#fff">Fechar Chamada</button>
         <button id="new" class="primary">Nova Chamada</button>
       </div>
+      <div id="exports" class="hidden" style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+        <span id="dlXlsx" class="btnlike">Baixar Excel</span>
+        <span id="dlDocx" class="btnlike">Baixar Word</span>
+      </div>
     </div>
 
     <div class="card" style="flex:1">
       <h3>Presentes</h3>
       <ul id="list"></ul>
       <p><b>Total:</b> <span id="count">0</span></p>
-      <div id="exports" class="hidden" style="display:flex; gap:8px; flex-wrap:wrap;">
-        <a id="dlXlsx" class="primary" href="#">Baixar Excel</a>
-        <a id="dlDocx" class="primary" href="#">Baixar Word</a>
-      </div>
     </div>
   </div>
 
@@ -63,8 +63,25 @@
     const exportsDiv = document.getElementById('exports');
     const dlXlsx = document.getElementById('dlXlsx');
     const dlDocx = document.getElementById('dlDocx');
+
     let sessionId = null;
     let socket = null;
+
+    const LS_KEY = 'qr-attendance:host';
+
+    function saveState() {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        sessionId,
+        lessonName: lessonInput.value.trim() || ''
+      }));
+    }
+    function clearState() {
+      localStorage.removeItem(LS_KEY);
+    }
+    function loadState() {
+      try { return JSON.parse(localStorage.getItem(LS_KEY) || 'null'); }
+      catch { return null; }
+    }
 
     async function getLocation() {
       return new Promise((resolve, reject) => {
@@ -92,10 +109,50 @@
       count.textContent = Number(count.textContent) + 1;
     }
 
+    function connectSocketAndListen() {
+      if (socket) socket.disconnect();
+      socket = io();
+      socket.emit('host:join', sessionId);
+      socket.on('attendee:new', (a) => addAttendee(a));
+    }
+
+    async function hydrateFromSnapshot() {
+      const snapRes = await fetch('/api/sessions/' + sessionId);
+      if (!snapRes.ok) {
+        clearState();
+        clearUI();
+        live.classList.add('hidden');
+        return;
+      }
+      const snap = await snapRes.json();
+      live.classList.remove('hidden');
+      lessonInput.value = snap.name || '';
+
+      const joinUrl = `${location.origin}/join.html?id=${snap.id}`;
+      joinLinkP.innerHTML = `<small>Link: <a href="${joinUrl}" target="_blank">${joinUrl}</a></small>`;
+
+      clearUI();
+      for (const a of snap.attendees) addAttendee(a);
+
+      if (snap.active === false) {
+        exportsDiv.classList.remove('hidden');
+        dlXlsx.onclick = () => window.open('/api/sessions/' + sessionId + '/export.xlsx', '_self');
+        dlDocx.onclick = () => window.open('/api/sessions/' + sessionId + '/export.docx', '_self');
+      }
+      connectSocketAndListen();
+    }
+
+    window.addEventListener('load', async () => {
+      const saved = loadState();
+      if (saved && saved.sessionId) {
+        sessionId = saved.sessionId;
+        await hydrateFromSnapshot();
+      }
+    });
+
     startBtn.onclick = async () => {
       const name = lessonInput.value.trim();
       if (!name) { alert('Digite o nome da aula'); return; }
-
       try {
         const loc = await getLocation();
         const resp = await fetch('/api/sessions', {
@@ -107,15 +164,16 @@
         if (!resp.ok) { alert(data.error || 'Erro'); return; }
 
         sessionId = data.id;
+        saveState();
+
         live.classList.remove('hidden');
         qrDiv.innerHTML = `<img alt="QR" src="${data.qrPng}" width="256" height="256"/>`;
         joinLinkP.innerHTML = `<small>Link: <a href="${data.joinUrl}" target="_blank">${data.joinUrl}</a></small>`;
 
-        socket = io();
-        socket.emit('host:join', sessionId);
-        socket.on('attendee:new', (a) => addAttendee(a));
+        connectSocketAndListen();
 
         const snap = await fetch('/api/sessions/' + sessionId).then(r=>r.json());
+        clearUI();
         for (const a of snap.attendees) addAttendee(a);
       } catch (e) {
         console.error(e);
@@ -125,10 +183,12 @@
 
     closeBtn.onclick = async () => {
       if (!sessionId) return;
-      await fetch('/api/sessions/' + sessionId + '/close', { method: 'POST' });
-      exportsDiv.classList.remove('hidden'); // mostra opções de download (que apagam a sessão após baixar)
-      dlXlsx.href = '/api/sessions/' + sessionId + '/export.xlsx';
-      dlDocx.href = '/api/sessions/' + sessionId + '/export.docx';
+      const r = await fetch('/api/sessions/' + sessionId + '/close', { method: 'POST' });
+      if (!r.ok) { alert('Não foi possível fechar a chamada'); return; }
+      exportsDiv.classList.remove('hidden');
+      dlXlsx.onclick = () => window.open('/api/sessions/' + sessionId + '/export.xlsx', '_self');
+      dlDocx.onclick = () => window.open('/api/sessions/' + sessionId + '/export.docx', '_self');
+      saveState();
     };
 
     newBtn.onclick = async () => {
@@ -146,26 +206,40 @@
         const data = await resp.json();
         if (!resp.ok) { alert(data.error || 'Erro'); return; }
 
-        // zera UI e inicia nova sessão
         clearUI();
         sessionId = data.id;
         lessonInput.value = name;
+        saveState();
+
         live.classList.remove('hidden');
         qrDiv.innerHTML = `<img alt="QR" src="${data.qrPng}" width="256" height="256"/>`;
         joinLinkP.innerHTML = `<small>Link: <a href="${data.joinUrl}" target="_blank">${data.joinUrl}</a></small>`;
 
-        if (socket) socket.disconnect();
-        socket = io();
-        socket.emit('host:join', sessionId);
-        socket.on('attendee:new', (a) => addAttendee(a));
+        connectSocketAndListen();
 
         const snap = await fetch('/api/sessions/' + sessionId).then(r=>r.json());
+        clearUI();
         for (const a of snap.attendees) addAttendee(a);
       } catch (e) {
         console.error(e);
         alert('Precisamos da sua localização para iniciar a nova chamada.');
       }
     };
+
+    // depois de exportar, o servidor apaga a sessão; vamos conferir e limpar
+    async function checkIfSessionStillExists() {
+      if (!sessionId) return;
+      const r = await fetch('/api/sessions/' + sessionId);
+      if (r.status === 404) {
+        clearState();
+        clearUI();
+        live.classList.add('hidden');
+        if (socket) socket.disconnect();
+        alert('Chamada finalizada e dados apagados.');
+      }
+    }
+    dlXlsx && dlXlsx.addEventListener('click', () => setTimeout(checkIfSessionStillExists, 3000));
+    dlDocx && dlDocx.addEventListener('click', () => setTimeout(checkIfSessionStillExists, 3000));
   </script>
 </body>
 </html>
