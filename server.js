@@ -1,4 +1,3 @@
-
 import express from 'express';
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
@@ -8,21 +7,26 @@ import { Document, Packer, Paragraph, TextRun } from 'docx';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const app = express();
 const server = http.createServer(app);
 const io = new SocketIOServer(server, { cors: { origin: '*' } });
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan('dev'));
-app.use(express.static('public'));
 
-// In-memory store (no database)
+// Serve os arquivos estáticos da pasta public
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Armazena as chamadas na memória (sem banco de dados)
 const sessions = new Map();
-// session structure:
-// id: { name, createdAt, lat, lng, active, attendees: [{name, rgm, time, ip}] }
 
 function randomId(length = 8) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -31,10 +35,9 @@ function randomId(length = 8) {
   return s;
 }
 
-// Haversine distance in meters
 function distanceMeters(lat1, lon1, lat2, lon2) {
-  function toRad(x){ return x*Math.PI/180; }
-  const R = 6371000; // meters
+  function toRad(x) { return x * Math.PI / 180; }
+  const R = 6371000;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -44,7 +47,7 @@ function distanceMeters(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-// Create session
+// Criar chamada
 app.post('/api/sessions', async (req, res) => {
   const { name, lat, lng } = req.body || {};
   if (!name || typeof lat !== 'number' || typeof lng !== 'number') {
@@ -52,29 +55,24 @@ app.post('/api/sessions', async (req, res) => {
   }
   const id = randomId();
   sessions.set(id, { name, createdAt: new Date(), lat, lng, active: true, attendees: [] });
-  const joinUrl = `https://creativity-rna-designation-ky.trycloudflare.com/join.html?id=${id}`;
+
+  // Detecta host e protocolo corretos (para QR Code no Render)
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol).split(',')[0];
+  const host  = (req.headers['x-forwarded-host'] || req.get('host'));
+  const joinUrl = `${proto}://${host}/join.html?id=${id}`;
+
   const qrPng = await QRCode.toDataURL(joinUrl);
   res.json({ id, name, joinUrl, qrPng });
 });
 
-// Get QR image (optional separate route)
-app.get('/api/sessions/:id/qr.png', async (req, res) => {
-  const id = req.params.id;
-  if (!sessions.has(id)) return res.status(404).send('Not found');
-  const joinUrl = `https://creativity-rna-designation-ky.trycloudflare.com/join.html?id=${id}`;
-  const png = await QRCode.toBuffer(joinUrl);
-  res.setHeader('Content-Type','image/png');
-  res.send(png);
-});
-
-// Get session info (for host screen)
+// Obter dados da sessão
 app.get('/api/sessions/:id', (req, res) => {
   const s = sessions.get(req.params.id);
   if (!s) return res.status(404).json({ error: 'Sessão não encontrada' });
   res.json({ id: req.params.id, name: s.name, active: s.active, attendees: s.attendees });
 });
 
-// Student submit
+// Registrar presença do aluno
 app.post('/api/sessions/:id/join', (req, res) => {
   const s = sessions.get(req.params.id);
   if (!s) return res.status(404).json({ error: 'Sessão não encontrada' });
@@ -85,13 +83,10 @@ app.post('/api/sessions/:id/join', (req, res) => {
     return res.status(400).json({ error: 'name, rgm, lat, lng são obrigatórios' });
   }
 
-  // distance check (<= 50m)
-  const dist = distanceMeters(s.lat, s.lng, lat, lng);
-  if (dist > 50) {
+  if (distanceMeters(s.lat, s.lng, lat, lng) > 50) {
     return res.status(403).json({ error: 'Fora do raio permitido (50m)' });
   }
 
-  // reject duplicate RGM
   if (s.attendees.some(a => a.rgm.trim().toLowerCase() === String(rgm).trim().toLowerCase())) {
     return res.status(409).json({ error: 'RGM já registrado nesta chamada' });
   }
@@ -100,21 +95,19 @@ app.post('/api/sessions/:id/join', (req, res) => {
   const attendee = { name, rgm: String(rgm), time: new Date().toISOString(), ip };
   s.attendees.push(attendee);
 
-  // notify host via socket
   io.to(`host:${req.params.id}`).emit('attendee:new', attendee);
-
   res.json({ ok: true });
 });
 
-// Close session
-app.post('/api/sessions/:id/close', async (req, res) => {
+// Fechar chamada
+app.post('/api/sessions/:id/close', (req, res) => {
   const s = sessions.get(req.params.id);
   if (!s) return res.status(404).json({ error: 'Sessão não encontrada' });
   s.active = false;
   res.json({ ok: true });
 });
 
-// Export Excel
+// Exportar Excel
 app.get('/api/sessions/:id/export.xlsx', async (req, res) => {
   const s = sessions.get(req.params.id);
   if (!s) return res.status(404).send('Not found');
@@ -133,12 +126,10 @@ app.get('/api/sessions/:id/export.xlsx', async (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="chamada_${req.params.id}.xlsx"`);
   await wb.xlsx.write(res);
   res.end();
-
-  // purge after export
   sessions.delete(req.params.id);
 });
 
-// Export Word
+// Exportar Word
 app.get('/api/sessions/:id/export.docx', async (req, res) => {
   const s = sessions.get(req.params.id);
   if (!s) return res.status(404).send('Not found');
@@ -155,12 +146,10 @@ app.get('/api/sessions/:id/export.docx', async (req, res) => {
   res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   res.setHeader('Content-Disposition', `attachment; filename="chamada_${req.params.id}.docx"`);
   res.send(b);
-
-  // purge after export
   sessions.delete(req.params.id);
 });
 
-// Socket.io
+// Socket.IO
 io.on('connection', (socket) => {
   socket.on('host:join', (sessionId) => {
     if (!sessions.has(sessionId)) return;

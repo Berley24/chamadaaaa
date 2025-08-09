@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chamada | Aluno</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; max-width: 420px; }
+    input { width: 100%; padding: 10px; margin: 8px 0; }
+    button { padding: 10px 16px; border-radius: 8px; border: 0; background: black; color: white; cursor: pointer; width: 100%; }
+    .msg { margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h2>Confirmar Presença</h2>
+  <div class="card">
+    <div id="form">
+      <label>Nome completo</label>
+      <input id="name" placeholder="Seu nome" />
+      <label>RGM</label>
+      <input id="rgm" placeholder="Seu RGM" />
+      <button id="send">Enviar</button>
+      <div class="msg" id="msg"></div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const id = params.get('id');
+    const sendBtn = document.getElementById('send');
+    const msg = document.getElementById('msg');
+    const nameI = document.getElementById('name');
+    const rgmI = document.getElementById('rgm');
+
+    async function getLocation() {
+      return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          (err) => reject(err),
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      });
+    }
+
+    sendBtn.onclick = async () => {
+      const name = nameI.value.trim();
+      const rgm = rgmI.value.trim();
+      if (!name || !rgm) { msg.textContent = 'Preencha nome e RGM'; return; }
+      try {
+        const loc = await getLocation();
+        const resp = await fetch('/api/sessions/' + id + '/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, rgm, lat: loc.lat, lng: loc.lng })
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          msg.textContent = data.error || 'Erro';
+        } else {
+          msg.textContent = 'Presença registrada! Você já pode fechar esta página.';
+          sendBtn.disabled = true;
+        }
+      } catch (e) {
+        console.error(e);
+        msg.textContent = 'Precisamos da sua localização para enviar.';
+      }
+    };
+  </script>
+</body>
+</html>
