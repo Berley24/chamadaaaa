@@ -17,11 +17,12 @@
     a.primary { padding: 10px 16px; border-radius: 8px; background: black; color: white; text-decoration: none; display: inline-block; }
   </style>
 </head>
+<!-- ... (cabeçalho e estilos iguais) ... -->
 <body>
   <h1>Chamada (Professor)</h1>
 
   <div class="card">
-    <label>Nome da aula/evento</label><br/>
+    <label for="lesson">Nome da aula/evento</label><br/>
     <input id="lesson" placeholder="Ex: Aula de Matemática" style="width: 320px; padding:8px;"/>
     <button id="start" class="primary">Iniciar Chamada</button>
   </div>
@@ -36,9 +37,11 @@
         <button id="close" style="background:#e53935;color:#fff">Fechar Chamada</button>
         <button id="new" class="primary">Nova Chamada</button>
       </div>
+
       <div id="exports" class="hidden" style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
         <a id="dlXlsx" class="primary" href="#">Baixar Excel</a>
         <a id="dlDocx" class="primary" href="#">Baixar Word</a>
+        <button id="purge" style="background:#555;color:#fff">Encerrar e limpar</button>
       </div>
     </div>
 
@@ -49,10 +52,7 @@
     </div>
   </div>
 
-  <!-- ÚNICO script externo: Socket.IO (CDN) -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
-
-  <!-- Script da página (inline, sem require/module) -->
   <script>
     const startBtn = document.getElementById('start');
     const lessonInput = document.getElementById('lesson');
@@ -66,35 +66,27 @@
     const exportsDiv = document.getElementById('exports');
     const dlXlsx = document.getElementById('dlXlsx');
     const dlDocx = document.getElementById('dlDocx');
+    const purgeBtn = document.getElementById('purge');
 
     let sessionId = null;
     let socket = null;
 
     const LS_KEY = 'qr-attendance:host';
+    function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify({ sessionId, lessonName: lessonInput.value.trim() || '' })); }
+    function clearState(){ localStorage.removeItem(LS_KEY); }
+    function loadState(){ try { return JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch { return null; } }
 
-    function saveState() {
-      localStorage.setItem(LS_KEY, JSON.stringify({
-        sessionId,
-        lessonName: lessonInput.value.trim() || ''
-      }));
-    }
-    function clearState() { localStorage.removeItem(LS_KEY); }
-    function loadState() {
-      try { return JSON.parse(localStorage.getItem(LS_KEY) || 'null'); }
-      catch { return null; }
-    }
-
-    async function getLocation() {
-      return new Promise((resolve, reject) => {
+    async function getLocation(){
+      return new Promise((resolve, reject)=>{
         navigator.geolocation.getCurrentPosition(
-          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-          (err) => reject(err),
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          (pos)=>resolve({lat:pos.coords.latitude,lng:pos.coords.longitude}),
+          reject,
+          { enableHighAccuracy:true, timeout:10000, maximumAge:0 }
         );
       });
     }
 
-    function clearUI() {
+    function clearUI(){
       list.innerHTML = '';
       count.textContent = '0';
       exportsDiv.classList.add('hidden');
@@ -102,7 +94,7 @@
       joinLinkP.innerHTML = '';
     }
 
-    function addAttendee(a) {
+    function addAttendee(a){
       const li = document.createElement('li');
       const dt = new Date(a.time);
       li.textContent = `${a.name} — ${a.rgm} (${dt.toLocaleTimeString()})`;
@@ -110,20 +102,17 @@
       count.textContent = Number(count.textContent) + 1;
     }
 
-    function connectSocketAndListen() {
+    function connectSocketAndListen(){
       if (socket) socket.disconnect();
       socket = io();
       socket.emit('host:join', sessionId);
-      socket.on('attendee:new', (a) => addAttendee(a));
+      socket.on('attendee:new', (a)=>addAttendee(a));
     }
 
-    async function hydrateFromSnapshot() {
+    async function hydrateFromSnapshot(){
       const snapRes = await fetch('/api/sessions/' + sessionId);
       if (!snapRes.ok) {
-        clearState();
-        clearUI();
-        live.classList.add('hidden');
-        return;
+        clearState(); clearUI(); live.classList.add('hidden'); return;
       }
       const snap = await snapRes.json();
       live.classList.remove('hidden');
@@ -143,48 +132,37 @@
       connectSocketAndListen();
     }
 
-    window.addEventListener('load', async () => {
+    window.addEventListener('load', async ()=>{
       const saved = loadState();
-      if (saved && saved.sessionId) {
-        sessionId = saved.sessionId;
-        await hydrateFromSnapshot();
-      }
+      if (saved && saved.sessionId) { sessionId = saved.sessionId; await hydrateFromSnapshot(); }
     });
 
-    startBtn.onclick = async () => {
+    startBtn.onclick = async ()=>{
       const name = lessonInput.value.trim();
       if (!name) { alert('Digite o nome da aula'); return; }
       try {
         const loc = await getLocation();
         const resp = await fetch('/api/sessions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, lat: loc.lat, lng: loc.lng })
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ name, lat:loc.lat, lng:loc.lng })
         });
         const data = await resp.json();
         if (!resp.ok) { alert(data.error || 'Erro'); return; }
 
-        sessionId = data.id;
-        saveState();
-
+        sessionId = data.id; saveState();
         live.classList.remove('hidden');
         qrDiv.innerHTML = `<img alt="QR" src="${data.qrPng}" width="256" height="256"/>`;
         joinLinkP.innerHTML = `<small>Link: <a href="${data.joinUrl}" target="_blank">${data.joinUrl}</a></small>`;
-
         connectSocketAndListen();
 
         const snap = await fetch('/api/sessions/' + sessionId).then(r=>r.json());
-        clearUI();
-        for (const a of snap.attendees) addAttendee(a);
-      } catch (e) {
-        console.error(e);
-        alert('Precisamos da sua localização para iniciar.');
-      }
+        clearUI(); for (const a of snap.attendees) addAttendee(a);
+      } catch(e){ console.error(e); alert('Precisamos da sua localização para iniciar.'); }
     };
 
-    closeBtn.onclick = async () => {
+    closeBtn.onclick = async ()=>{
       if (!sessionId) return;
-      const r = await fetch('/api/sessions/' + sessionId + '/close', { method: 'POST' });
+      const r = await fetch('/api/sessions/' + sessionId + '/close', { method:'POST' });
       if (!r.ok) { alert('Não foi possível fechar a chamada'); return; }
       exportsDiv.classList.remove('hidden');
       dlXlsx.href = '/api/sessions/' + sessionId + '/export.xlsx';
@@ -192,39 +170,41 @@
       saveState();
     };
 
-    newBtn.onclick = async () => {
+    newBtn.onclick = async ()=>{
       const defaultName = lessonInput.value.trim() || '';
       const name = prompt('Nome da aula/evento da nova chamada:', defaultName);
       if (!name) return;
-
       try {
         const loc = await getLocation();
         const resp = await fetch('/api/sessions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, lat: loc.lat, lng: loc.lng })
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ name, lat:loc.lat, lng:loc.lng })
         });
         const data = await resp.json();
         if (!resp.ok) { alert(data.error || 'Erro'); return; }
 
         clearUI();
-        sessionId = data.id;
-        lessonInput.value = name;
-        saveState();
-
+        sessionId = data.id; lessonInput.value = name; saveState();
         live.classList.remove('hidden');
         qrDiv.innerHTML = `<img alt="QR" src="${data.qrPng}" width="256" height="256"/>`;
         joinLinkP.innerHTML = `<small>Link: <a href="${data.joinUrl}" target="_blank">${data.joinUrl}</a></small>`;
-
         connectSocketAndListen();
 
         const snap = await fetch('/api/sessions/' + sessionId).then(r=>r.json());
-        clearUI();
-        for (const a of snap.attendees) addAttendee(a);
-      } catch (e) {
-        console.error(e);
-        alert('Precisamos da sua localização para iniciar a nova chamada.');
-      }
+        clearUI(); for (const a of snap.attendees) addAttendee(a);
+      } catch(e){ console.error(e); alert('Precisamos da sua localização para iniciar a nova chamada.'); }
+    };
+
+    // ENCERRAR E LIMPAR (apaga do servidor)
+    purgeBtn.onclick = async ()=>{
+      if (!sessionId) return;
+      if (!confirm('Tem certeza? Isso apaga todos os dados desta chamada do servidor.')) return;
+      const r = await fetch('/api/sessions/' + sessionId + '/purge', { method:'POST' });
+      if (!r.ok) { alert('Não foi possível limpar.'); return; }
+      clearState();
+      clearUI();
+      live.classList.add('hidden');
+      alert('Sessão encerrada e limpa.');
     };
   </script>
 </body>
