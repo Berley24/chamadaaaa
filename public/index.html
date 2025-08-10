@@ -34,6 +34,7 @@
       <p id="joinLink"></p>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button id="close" style="background:#e53935;color:#fff">Fechar Chamada</button>
+        <button id="recenter" class="primary">Fixar local novamente</button>
         <button id="new" class="primary">Nova Chamada</button>
       </div>
 
@@ -61,6 +62,7 @@
     const count = document.getElementById('count');
     const closeBtn = document.getElementById('close');
     const newBtn = document.getElementById('new');
+    const recenterBtn = document.getElementById('recenter');
     const joinLinkP = document.getElementById('joinLink');
     const exportsDiv = document.getElementById('exports');
     const dlXlsx = document.getElementById('dlXlsx');
@@ -80,12 +82,11 @@
         navigator.geolocation.getCurrentPosition(
           (pos)=>resolve({lat:pos.coords.latitude,lng:pos.coords.longitude}),
           reject,
-          { enableHighAccuracy:true, timeout:10000, maximumAge:0 }
+          { enableHighAccuracy:true, timeout:15000, maximumAge:0 }
         );
       });
     }
 
-    // >>> só limpa a lista/contador (não mexe no QR nem nos botões)
     function clearList(){
       list.innerHTML = '';
       count.textContent = '0';
@@ -113,13 +114,16 @@
         clearList();
         exportsDiv.classList.add('hidden');
         live.classList.add('hidden');
+        qrDiv.innerHTML = 'QR...';
+        joinLinkP.innerHTML = '';
         return;
       }
       const snap = await snapRes.json();
       live.classList.remove('hidden');
       lessonInput.value = snap.name || '';
 
-      // mantém o QR existente — não sobrescreve
+      // redesenha o QR ao hidratar (cobre refresh)
+      qrDiv.innerHTML = `<img alt="QR" src="/api/sessions/${sessionId}/qr.png" width="256" height="256"/>`;
       const joinUrl = `${location.origin}/join.html?id=${snap.id}`;
       joinLinkP.innerHTML = `<small>Link: <a href="${joinUrl}" target="_blank">${joinUrl}</a></small>`;
 
@@ -130,7 +134,10 @@
         exportsDiv.classList.remove('hidden');
         dlXlsx.href = '/api/sessions/' + sessionId + '/export.xlsx';
         dlDocx.href = '/api/sessions/' + sessionId + '/export.docx';
+      } else {
+        exportsDiv.classList.add('hidden');
       }
+
       connectSocketAndListen();
     }
 
@@ -153,8 +160,6 @@
 
         sessionId = data.id; saveState();
         live.classList.remove('hidden');
-
-        // desenha o QR uma vez e NÃO apagamos mais
         qrDiv.innerHTML = `<img alt="QR" src="${data.qrPng}" width="256" height="256"/>`;
         joinLinkP.innerHTML = `<small>Link: <a href="${data.joinUrl}" target="_blank">${data.joinUrl}</a></small>`;
 
@@ -176,6 +181,26 @@
       saveState();
     };
 
+    recenterBtn.onclick = async ()=>{
+      if (!sessionId) return;
+      try {
+        const loc = await getLocation();
+        const r = await fetch('/api/sessions/' + sessionId + '/location', {
+          method:'PATCH',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ lat: loc.lat, lng: loc.lng })
+        });
+        if (!r.ok) {
+          const t = await r.text();
+          alert('Não foi possível atualizar o local: ' + t);
+          return;
+        }
+        alert('Local da chamada atualizado com sucesso!');
+      } catch (e) {
+        alert('Precisamos da sua localização para atualizar o centro da chamada.');
+      }
+    };
+
     newBtn.onclick = async ()=>{
       const defaultName = lessonInput.value.trim() || '';
       const name = prompt('Nome da aula/evento da nova chamada:', defaultName);
@@ -189,7 +214,7 @@
         const data = await resp.json();
         if (!resp.ok) { alert(data.error || 'Erro'); return; }
 
-        // não resetamos o QR até receber o novo
+        clearList();
         sessionId = data.id; lessonInput.value = name; saveState();
         live.classList.remove('hidden');
         qrDiv.innerHTML = `<img alt="QR" src="${data.qrPng}" width="256" height="256"/>`;

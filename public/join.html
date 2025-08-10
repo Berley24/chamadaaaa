@@ -43,7 +43,6 @@
     }
 
     const KEY = 'qr-attendance:aluno:' + id;
-
     const already = localStorage.getItem(KEY);
     if (already === '1') {
       sendBtn.disabled = true;
@@ -69,22 +68,19 @@
       });
     }
 
-    // Pede a localização assim que a página abrir (para mostrar o pop-up cedo)
+    // pede localização ao abrir
     window.addEventListener('load', async () => {
       try {
-        // Se o browser expõe a Permissions API, avaliamos o estado
         if (navigator.permissions && navigator.permissions.query) {
           try {
             const st = await navigator.permissions.query({ name: 'geolocation' });
             if (st.state === 'denied') geoHelpDenied();
-            // se for 'prompt' ou 'granted', seguimos e tentamos obter a posição
           } catch {}
         }
-        await getLocation(); // dispara o prompt se ainda não decidiu
+        await getLocation(); // dispara o prompt
         help.textContent = 'Localização pronta. Você pode enviar seus dados.';
         help.classList.add('ok');
       } catch (e) {
-        // usuário negou, timeout ou outro erro
         geoHelpDenied();
       }
     });
@@ -94,37 +90,30 @@
       const rgm = rgmI.value.trim();
       if (!name || !rgm) { msg.textContent = 'Preencha nome e RGM'; return; }
       if (!id) { msg.textContent = 'ID da chamada ausente.'; return; }
-
       try {
-        const loc = await getLocation(); // garante que temos localização no momento do envio
+        const loc = await getLocation();
         const resp = await fetch('/api/sessions/' + id + '/join', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, rgm, lat: loc.lat, lng: loc.lng })
+          body: JSON.stringify({ name, rgm, lat: loc.lat, lng: loc.lng, acc: loc.acc })
         });
-
-        // lê como texto primeiro para debug melhor
         const text = await resp.text();
-        let data;
-        try { data = JSON.parse(text); } catch { data = { error: text }; }
+        let data; try { data = JSON.parse(text); } catch { data = { error: text }; }
 
         if (!resp.ok) {
           msg.textContent = (data && data.error) ? data.error : `Erro (${resp.status})`;
-          // conflito/duplicidade: trava o botão
           if (resp.status === 409) {
             localStorage.setItem(KEY, '1');
             sendBtn.disabled = true;
           }
-          // geolocalização fora do raio
           if (resp.status === 403) {
-            help.textContent = 'Você está fora do raio permitido desta chamada.';
+            help.textContent = 'Você está fora do raio permitido desta chamada (30 m).';
             help.classList.remove('ok');
           }
         } else {
           msg.textContent = 'Presença registrada! Você já pode fechar esta página.';
           sendBtn.disabled = true;
           localStorage.setItem(KEY, '1');
-          // feedback opcional de acurácia
           if (loc && typeof loc.acc === 'number') {
             help.textContent = `Precisão da sua localização ~ ${Math.round(loc.acc)} m.`;
             help.classList.add('ok');

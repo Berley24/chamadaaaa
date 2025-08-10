@@ -22,10 +22,10 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(morgan('dev'));
 
-// rota de saúde (diagnóstico)
+// rota de saúde
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
-// logs simples
+// log simples
 app.use((req, _res, next) => {
   console.log(`[REQ] ${req.method} ${req.url}`);
   next();
@@ -48,7 +48,7 @@ function randomId(length = 8) {
   return s;
 }
 
-// Haversine (m)
+// Haversine (metros)
 function distanceMeters(lat1, lon1, lat2, lon2) {
   const toRad = (x) => (x * Math.PI) / 180;
   const R = 6371000;
@@ -88,6 +88,22 @@ app.get('/api/sessions/:id', (req, res) => {
   res.json({ id: req.params.id, name: s.name, active: s.active, attendees: s.attendees });
 });
 
+// QR como PNG (para reaparecer após refresh)
+app.get('/api/sessions/:id/qr.png', async (req, res) => {
+  const s = sessions.get(req.params.id);
+  if (!s) return res.status(404).send('Not found');
+  const proto = (req.headers['x-forwarded-proto'] || req.protocol).split(',')[0];
+  const host  = (req.headers['x-forwarded-host'] || req.get('host'));
+  const joinUrl = `${proto}://${host}/join.html?id=${req.params.id}`;
+  try {
+    const buf = await QRCode.toBuffer(joinUrl, { type: 'png', width: 256, errorCorrectionLevel: 'M' });
+    res.setHeader('Content-Type', 'image/png');
+    res.end(buf);
+  } catch {
+    res.status(500).send('QR error');
+  }
+});
+
 // debug opcional
 app.get('/api/sessions/:id/debug', (req, res) => {
   const s = sessions.get(req.params.id);
@@ -95,19 +111,41 @@ app.get('/api/sessions/:id/debug', (req, res) => {
   res.json(s);
 });
 
-// aluno entra
+// atualizar localização da sessão (professor recenter)
+app.patch('/api/sessions/:id/location', (req, res) => {
+  const s = sessions.get(req.params.id);
+  if (!s) return res.status(404).json({ error: 'Sessão não encontrada' });
+
+  const { lat, lng } = req.body || {};
+  if (typeof lat !== 'number' || typeof lng !== 'number') {
+    return res.status(400).json({ error: 'lat, lng são obrigatórios' });
+  }
+  s.lat = lat;
+  s.lng = lng;
+  console.log(`[RELOC] id=${req.params.id} prof=(${lat.toFixed(6)},${lng.toFixed(6)})`);
+  return res.json({ ok: true });
+});
+
+// aluno entra (validação 30m + logs)
 app.post('/api/sessions/:id/join', (req, res) => {
   const s = sessions.get(req.params.id);
   if (!s) return res.status(404).json({ error: 'Sessão não encontrada' });
   if (!s.active) return res.status(403).json({ error: 'Chamada encerrada' });
 
-  const { name, rgm, lat, lng } = req.body || {};
+  const { name, rgm, lat, lng, acc } = req.body || {};
   if (!name || !rgm || typeof lat !== 'number' || typeof lng !== 'number') {
     return res.status(400).json({ error: 'name, rgm, lat, lng são obrigatórios' });
   }
 
-  if (distanceMeters(s.lat, s.lng, lat, lng) > 50) {
-    return res.status(403).json({ error: 'Fora do raio permitido (50m)' });
+  const dist = distanceMeters(s.lat, s.lng, lat, lng);
+  console.log(
+    `[JOIN] id=${req.params.id} name=${name} rgm=${rgm} dist=${Math.round(dist)}m acc=${acc ?? 'n/a'} ` +
+    `prof=(${s.lat.toFixed(6)},${s.lng.toFixed(6)}) aluno=(${lat.toFixed(6)},${lng.toFixed(6)})`
+  );
+
+  // RAIO INEGOCIÁVEL: 30m
+  if (dist > 30) {
+    return res.status(403).json({ error: 'Fora do raio permitido (30m)' });
   }
 
   const rgmKey = normRGM(rgm);
