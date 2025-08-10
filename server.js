@@ -61,7 +61,25 @@ function distanceMeters(lat1, lon1, lat2, lon2) {
 }
 
 function normRGM(v) {
-  return String(v).normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').replace(/[^a-z0-9]/g, '').trim();
+  return String(v)
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
+// ------- helpers para nome de arquivo -------
+function safeFilename(s) {
+  return String(s || '')
+    .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')  // remove acentos
+    .replace(/[^a-z0-9\s\-_]/gi, '')                    // mantém só letras/números/espaço/-/_
+    .trim()
+    .replace(/\s+/g, '-')                               // espaços -> hífen
+    .toLowerCase();
+}
+function todayISO() {
+  return new Date().toISOString().slice(0, 10); // AAAA-MM-DD
 }
 
 // criar chamada
@@ -189,8 +207,9 @@ app.get('/api/sessions/:id/export.xlsx', async (req, res) => {
   ];
   s.attendees.forEach(a => ws.addRow({ lesson: s.name, name: a.name, rgm: a.rgm, time: a.time, ip: a.ip }));
 
+  const filename = `lista-de-presenca_${safeFilename(s.name)}_${todayISO()}.xlsx`;
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', `attachment; filename="chamada_${req.params.id}.xlsx"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
   const buffer = await wb.xlsx.writeBuffer();
   res.end(Buffer.from(buffer));
@@ -203,7 +222,7 @@ app.get('/api/sessions/:id/export.docx', async (req, res) => {
 
   const paragraphs = [
     new Paragraph({ children: [ new TextRun({ text: `Lista de Presença - ${s.name}`, bold: true, size: 28 }) ] }),
-    new Paragraph({ children: [ new TextRun({ text: `Gerado em: ${new Date().toLocaleString()}` }) ] }),
+    new Paragraph({ children: [ new TextRun({ text: `Gerado em: ${new Date().toLocaleString('pt-BR')}` }) ] }),
     new Paragraph({ children: [ new TextRun({ text: '' }) ] }),
   ];
   s.attendees.forEach((a, i) => {
@@ -213,8 +232,9 @@ app.get('/api/sessions/:id/export.docx', async (req, res) => {
   const doc = new Document({ sections: [{ properties: {}, children: paragraphs }] });
   const b = await Packer.toBuffer(doc);
 
+  const filename = `lista-de-presenca_${safeFilename(s.name)}_${todayISO()}.docx`;
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-  res.setHeader('Content-Disposition', `attachment; filename="chamada_${req.params.id}.docx"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.end(b);
 });
 
