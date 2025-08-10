@@ -1,42 +1,96 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Chamada | Aluno</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 24px; }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; max-width: 420px; }
-    input { width: 100%; padding: 10px; margin: 8px 0; }
-    button { padding: 10px 16px; border-radius: 8px; border: 0; background: black; color: white; cursor: pointer; width: 100%; }
-    .msg { margin-top: 12px; color:#c00; }
-    .ok  { color: #0a6; }
-    small.help { display:block; color:#666; margin-top:6px; line-height:1.3; }
+    :root{
+      --bg: #0f1220;
+      --panel: rgba(255,255,255,.08);
+      --panel-border: rgba(255,255,255,.12);
+      --text: #e7e9ee;
+      --muted: #aab0c0;
+      --primary: #6c9eff;
+      --ok: #19c37d;
+      --shadow: 0 10px 30px rgba(0,0,0,.4);
+      --ring: 0 0 0 3px rgba(108,158,255,.25);
+    }
+    [data-theme="light"]{
+      --bg: #f6f7fb;
+      --panel: rgba(255,255,255,.9);
+      --panel-border: rgba(0,0,0,.06);
+      --text: #111827;
+      --muted: #4b5563;
+      --primary: #3b82f6;
+      --ok: #10b981;
+      --shadow: 0 10px 30px rgba(24, 39, 75, 0.08);
+      --ring: 0 0 0 3px rgba(59,130,246,.25);
+    }
 
-    /* Toast */
+    *{ box-sizing: border-box }
+    body{
+      margin:0; min-height:100vh; display:grid; place-items:center; padding: 24px;
+      font: 16px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 600px at -10% -20%, rgba(108,158,255,.15), transparent 60%),
+        radial-gradient(900px 500px at 110% 10%, rgba(25,195,125,.12), transparent 55%),
+        var(--bg);
+    }
+
+    .wrap{ width:100%; max-width: 460px }
+    .title{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .theme{ border:1px solid var(--panel-border); background:var(--panel); color:var(--text);
+      padding:8px 12px; border-radius:12px; cursor:pointer; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+
+    .card{
+      border:1px solid var(--panel-border);
+      background: var(--panel);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+    }
+    label{ font-weight:600; font-size:14px; margin-top:4px; display:block }
+    input{
+      width:100%; padding:12px 14px; border-radius:12px; margin-top:6px;
+      border:1px solid var(--panel-border); background: rgba(255,255,255,.05);
+      color:var(--text); outline:none;
+    }
+    input:focus{ box-shadow: var(--ring); border-color: transparent; }
+
+    button{
+      width:100%; padding:12px 16px; border-radius:12px; border:0; cursor:pointer;
+      background: var(--primary); color:white; margin-top:12px;
+      transition:.15s transform, .15s filter;
+    }
+    button:hover{ filter:brightness(1.05) }
+    button:active{ transform: translateY(1px) }
+
+    .msg{ margin-top: 10px; color:#c0392b }
+    .ok{ color: var(--ok) }
+    small.help{ display:block; color:var(--muted); margin-top:6px; line-height:1.3; }
+
     .toast {
-      position: fixed;
-      left: 50%;
-      transform: translateX(-50%);
-      bottom: 24px;
-      background: #333;
-      color: #fff;
-      padding: 12px 16px;
-      border-radius: 8px;
-      box-shadow: 0 6px 20px rgba(0,0,0,.2);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .3s ease, bottom .3s ease;
-      z-index: 9999;
-      font-size: 14px;
+      position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px;
+      background: #222; color: #fff; padding: 12px 16px; border-radius: 10px;
+      box-shadow: var(--shadow); opacity: 0; pointer-events: none;
+      transition: opacity .25s ease, bottom .25s ease; z-index: 9999; font-size: 14px;
     }
     .toast.show { opacity: 1; bottom: 40px; }
   </style>
 </head>
 <body>
-  <h2>Confirmar Presença</h2>
-  <div class="card">
-    <div id="form">
+  <div class="wrap">
+    <div class="title">
+      <h2 class="no-margin">Confirmar Presença</h2>
+    h2.no-margin { margin: 0; }
+      <button class="theme" id="themeToggle">Tema</button>
+    </div>
+
+    <div class="card">
       <label>Nome completo</label>
       <input id="name" placeholder="Seu nome" />
       <label>RGM</label>
@@ -47,10 +101,47 @@
     </div>
   </div>
 
-  <!-- Toast -->
   <div id="toast" class="toast"></div>
 
   <script>
+    // ===== Mensagens centralizadas
+    const MSG = {
+      UI_EMPTY: 'Preencha nome e RGM',
+      UI_ID_MISSING_SEND: 'ID da chamada ausente.',
+      UI_ID_MISSING_LOAD: 'Link inválido: sem ID da chamada.',
+      UI_ALREADY: 'Você já registrou presença nesta chamada.',
+
+      GEO_DENIED: 'Localização bloqueada. Toque no cadeado → Permissões → Localização → Permitir e recarregue.',
+      GEO_NEEDED: 'Precisamos da sua localização para enviar.',
+
+      TOAST_DUP: '⚠️ Já registrado',
+      TOAST_OUT: '⛔ Fora do raio',
+      TOAST_OK: '✅ Presença registrada',
+      TOAST_GEO_ERR: '❌ Erro ao obter localização',
+    };
+
+    // ===== Tema
+    const themeToggle = document.getElementById('themeToggle');
+    themeToggle.onclick = () => {
+      const html = document.documentElement;
+      html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('qr-theme', html.dataset.theme);
+    };
+    (function initTheme(){
+      const saved = localStorage.getItem('qr-theme');
+      document.documentElement.dataset.theme = saved || 'light';
+    })();
+
+    // ===== Toast
+    let toastTimer=null;
+    function showToast(t){
+      const el=document.getElementById('toast');
+      el.textContent=t; el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer=setTimeout(()=>el.classList.remove('show'), 2600);
+    }
+
+    // ===== DOM
     const params = new URLSearchParams(location.search);
     const id = params.get('id');
     const sendBtn = document.getElementById('send');
@@ -59,73 +150,48 @@
     const nameI = document.getElementById('name');
     const rgmI = document.getElementById('rgm');
 
-    // Toast helper
-    let toastTimer = null;
-    function showToast(text) {
-      const el = document.getElementById('toast');
-      el.textContent = text;
-      el.classList.add('show');
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
-    }
-
-    if (!id) {
-      msg.textContent = 'Link inválido: sem ID da chamada.';
-      sendBtn.disabled = true;
-    }
+    if (!id) { msg.textContent = MSG.UI_ID_MISSING_LOAD; sendBtn.disabled = true; }
 
     const KEY = 'qr-attendance:aluno:' + id;
     const already = localStorage.getItem(KEY);
-    if (already === '1') {
-      sendBtn.disabled = true;
-      msg.textContent = 'Você já registrou presença nesta chamada.';
-    }
+    if (already === '1') { sendBtn.disabled = true; msg.textContent = MSG.UI_ALREADY; }
 
-    function geoHelpDenied() {
-      help.innerHTML =
-        'Localização bloqueada. Toque no cadeado da barra de endereço → Permissões → Localização → <b>Permitir</b> e recarregue a página.';
-    }
+    function geoHelpDenied() { help.textContent = MSG.GEO_DENIED; }
 
     async function getLocation() {
       return new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
-          (pos) => resolve({
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            acc: pos.coords.accuracy
-          }),
+          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy }),
           (err) => reject(err),
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
       });
     }
 
-    // pede localização ao abrir
+    // Pede localização ao abrir (ajuda a garantir o prompt)
     window.addEventListener('load', async () => {
       try {
-        if (navigator.permissions && navigator.permissions.query) {
+        if (navigator.permissions?.query) {
           try {
             const st = await navigator.permissions.query({ name: 'geolocation' });
             if (st.state === 'denied') geoHelpDenied();
           } catch {}
         }
-        await getLocation(); // dispara o prompt
+        await getLocation();
         help.textContent = 'Localização pronta. Você pode enviar seus dados.';
         help.classList.add('ok');
-      } catch (e) {
-        geoHelpDenied();
-      }
+      } catch { geoHelpDenied(); }
     });
 
     sendBtn.onclick = async () => {
       const name = nameI.value.trim();
       const rgm = rgmI.value.trim();
-      if (!name || !rgm) { msg.textContent = 'Preencha nome e RGM'; return; }
-      if (!id) { msg.textContent = 'ID da chamada ausente.'; return; }
+      if (!name || !rgm) { msg.textContent = MSG.UI_EMPTY; return; }
+      if (!id) { msg.textContent = MSG.UI_ID_MISSING_SEND; return; }
 
       sendBtn.disabled = true;
-      const prevTxt = sendBtn.textContent;
-      sendBtn.textContent = 'Enviando...';
+      const prev = sendBtn.textContent;
+      sendBtn.textContent = 'Enviando…';
 
       try {
         const loc = await getLocation();
@@ -139,35 +205,38 @@
 
         if (!resp.ok) {
           msg.textContent = (data && data.error) ? data.error : `Erro (${resp.status})`;
-          // duplicidade → trava envio
-          if (resp.status === 409) {
+
+          if (resp.status === 409) { // duplicidade
             localStorage.setItem(KEY, '1');
-            showToast('⚠️ Você já registrou presença nesta chamada');
-          } else if (resp.status === 403) {
+            showToast(MSG.TOAST_DUP);
+            // mantém desabilitado
+          } else if (resp.status === 403) { // fora do raio
             help.textContent = 'Você está fora do raio permitido desta chamada (30 m).';
             help.classList.remove('ok');
-            showToast('⛔ Fora do raio permitido (30 m)');
-          } else {
-            // erro genérico → reabilita envio
+            showToast(MSG.TOAST_OUT);
+            // permite tentar de novo se aproximar
             sendBtn.disabled = false;
-            sendBtn.textContent = prevTxt;
+            sendBtn.textContent = prev;
+          } else {
+            // erro genérico — reabilita
+            sendBtn.disabled = false;
+            sendBtn.textContent = prev;
           }
         } else {
           msg.textContent = 'Presença registrada! Você já pode fechar esta página.';
           localStorage.setItem(KEY, '1');
-          showToast('✅ Presença registrada com sucesso!');
-          // feedback de precisão
-          if (loc && typeof loc.acc === 'number') {
+          showToast(MSG.TOAST_OK);
+          if (typeof loc.acc === 'number') {
             help.textContent = `Precisão da sua localização ~ ${Math.round(loc.acc)} m.`;
             help.classList.add('ok');
           }
+          // mantém desabilitado
         }
-      } catch (e) {
-        console.error(e);
-        msg.textContent = 'Precisamos da sua localização para enviar.';
-        showToast('❌ Erro ao obter localização');
+      } catch {
+        msg.textContent = MSG.GEO_NEEDED;
+        showToast(MSG.TOAST_GEO_ERR);
         sendBtn.disabled = false;
-        sendBtn.textContent = prevTxt;
+        sendBtn.textContent = prev;
         geoHelpDenied();
       }
     };

@@ -1,87 +1,225 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Chamada | Professor</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 24px; }
-    .row { display: flex; gap: 24px; flex-wrap: wrap; }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; min-width: 280px; }
-    #qr { width: 256px; height: 256px; border: 1px dashed #999; display:flex; align-items:center; justify-content:center; }
-    ul { list-style: none; padding: 0; }
-    li { padding: 6px 0; border-bottom: 1px solid #eee; }
-    button { padding: 10px 16px; border-radius: 8px; border: 0; cursor: pointer; }
-    button.primary { background: black; color: white; }
-    .hidden { display:none; }
-    a.primary { padding: 10px 16px; border-radius: 8px; background: black; color: white; text-decoration: none; display: inline-block; }
+    :root{
+      --bg: #0f1220;
+      --panel: rgba(255,255,255,.08);
+      --panel-border: rgba(255,255,255,.12);
+      --text: #e7e9ee;
+      --muted: #aab0c0;
+      --primary: #6c9eff;
+      --danger: #ef5350;
+      --ok: #19c37d;
+      --shadow: 0 10px 30px rgba(0,0,0,.4);
+      --ring: 0 0 0 3px rgba(108,158,255,.25);
+    }
+    [data-theme="light"]{
+      --bg: #f6f7fb;
+      --panel: rgba(255,255,255,.85);
+      --panel-border: rgba(0,0,0,.06);
+      --text: #111827;
+      --muted: #4b5563;
+      --primary: #3b82f6;
+      --danger: #ef4444;
+      --ok: #10b981;
+      --shadow: 0 10px 30px rgba(24, 39, 75, 0.08);
+      --ring: 0 0 0 3px rgba(59,130,246,.25);
+    }
 
-    /* Toast */
+    *{ box-sizing: border-box }
+    html,body{ height:100% }
+    body {
+      margin:0;
+      font: 16px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 600px at -10% -20%, rgba(108,158,255,.15), transparent 60%),
+        radial-gradient(900px 500px at 110% 10%, rgba(25,195,125,.12), transparent 55%),
+        var(--bg);
+    }
+
+    header{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:16px; padding:22px clamp(16px,4vw,40px);
+    }
+    .brand{ display:flex; align-items:center; gap:12px; font-weight:700; letter-spacing:.2px; }
+    .logo{
+      width:36px; height:36px; display:grid; place-items:center;
+      background: linear-gradient(135deg, var(--primary), #8ab6ff);
+      color:white; border-radius:12px; box-shadow: var(--shadow);
+      font-weight:900;
+    }
+    .theme{
+      border:1px solid var(--panel-border); background:var(--panel); color:var(--text);
+      padding:8px 12px; border-radius:12px; cursor:pointer;
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+    }
+
+    .container{ padding: 0 clamp(16px,4vw,40px) 40px; }
+    .grid{ display:grid; grid-template-columns: 360px 1fr; gap:24px; align-items:start; }
+    @media (max-width: 880px){ .grid{ grid-template-columns: 1fr } }
+
+    .card{
+      border:1px solid var(--panel-border);
+      background: var(--panel);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+    }
+
+    .stack{ display:flex; flex-direction:column; gap:12px; }
+
+    input{
+      width:100%; padding:12px 14px; border-radius:12px;
+      border:1px solid var(--panel-border); background: rgba(255,255,255,.05);
+      color:var(--text); outline:none;
+    }
+    input:focus{ box-shadow: var(--ring); border-color: transparent; }
+
+    .row-btns{ display:flex; flex-wrap:wrap; gap:10px; }
+    button, .btn{
+      padding:10px 16px; border-radius:12px; border:0; cursor:pointer;
+      background: var(--primary); color:white; transition:.15s transform, .15s filter;
+    }
+    button:hover, .btn:hover{ filter: brightness(1.05) }
+    button:active, .btn:active{ transform: translateY(1px) }
+    .btn-ghost{ background:transparent; border:1px solid var(--panel-border); color:var(--text) }
+    .btn-danger{ background: var(--danger) }
+
+    #qr{
+      width:256px; height:256px; border-radius:16px; display:flex; align-items:center; justify-content:center;
+      border:1px dashed var(--panel-border);
+      background: linear-gradient(180deg, rgba(255,255,255,.04), transparent);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+    }
+    #qr img{ width:256px; height:256px; border-radius:12px; box-shadow: 0 10px 24px rgba(0,0,0,.15) }
+
+    .list{ list-style:none; margin:0; padding:0; }
+    .list li{
+      display:flex; justify-content:space-between; align-items:center;
+      padding:10px 0; border-bottom: 1px dashed var(--panel-border);
+    }
+    .pill{
+      font-size:12px; color:var(--muted);
+      padding:4px 8px; border-radius:999px; border:1px solid var(--panel-border);
+      background: rgba(255,255,255,.04);
+    }
+
+    .meta{ color:var(--muted); font-size:13px; margin:6px 0 0 }
+
     .toast {
-      position: fixed;
-      left: 50%;
-      transform: translateX(-50%);
-      bottom: 24px;
-      background: #333;
-      color: #fff;
-      padding: 12px 16px;
-      border-radius: 8px;
-      box-shadow: 0 6px 20px rgba(0,0,0,.2);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity .3s ease, bottom .3s ease;
-      z-index: 9999;
-      font-size: 14px;
+      position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px;
+      background: #222; color: #fff; padding: 12px 16px; border-radius: 10px;
+      box-shadow: var(--shadow); opacity: 0; pointer-events: none;
+      transition: opacity .25s ease, bottom .25s ease; z-index: 9999; font-size: 14px;
     }
-    .toast.show {
-      opacity: 1;
-      bottom: 40px;
-    }
+    .toast.show { opacity: 1; bottom: 40px; }
   </style>
 </head>
 <body>
-  <h1>Chamada (Professor)</h1>
+  <header>
+    <div class="brand">
+      <div class="logo">QR</div>
+      <div>Chamada</div>
+    </div>
+    <button class="theme" id="themeToggle">Alternar tema</button>
+  </header>
 
-  <div class="card">
-    <label for="lesson">Nome da aula/evento</label><br/>
-    <input id="lesson" placeholder="Ex: Aula de Matemática" style="width: 320px; padding:8px;"/>
-    <button id="start" class="primary">Iniciar Chamada</button>
-  </div>
+  <div class="container">
+    <div class="grid">
+      <!-- Coluna esquerda -->
+      <div class="card stack">
+        <div class="stack">
+          <label for="lesson" class="label-strong">Nome da aula/evento</label>
+          <input id="lesson" placeholder="Ex: Aula de Matemática"/>
+        </div>
+        <div class="row-btns">
+          <button id="start">Iniciar Chamada</button>
+          <button id="close" class="btn-danger">Fechar Chamada</button>
+          <button id="recenter" class="btn-ghost">Fixar local novamente</button>
+          <button id="new" class="btn-ghost">Nova Chamada</button>
+        </div>
 
-  <div id="live" class="row hidden">
-    <div class="card">
-      <h3>QR Code</h3>
-      <div id="qr">QR...</div>
-      <p><small>Alunos devem escanear o QR e permitir localização</small></p>
-      <p id="joinLink"></p>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button id="close" style="background:#e53935;color:#fff">Fechar Chamada</button>
-        <button id="recenter" class="primary">Fixar local novamente</button>
-        <button id="new" class="primary">Nova Chamada</button>
+        <div class="stack">
+          <h3 class="qr-title">QR Code</h3>
+          <div id="qr">QR…</div>
+          <p id="joinLink" class="meta"></p>
+
+          <div id="exports" class="row-btns exports-hide">
+            <a id="dlXlsx" class="btn" href="#">Baixar Excel</a>
+            <a id="dlDocx" class="btn" href="#">Baixar Word</a>
+            <button id="purge" class="btn-ghost">Encerrar e limpar</button>
+          </div>
+        </div>
       </div>
 
-      <div id="exports" class="hidden" style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
-        <a id="dlXlsx" class="primary" href="#">Baixar Excel</a>
-        <a id="dlDocx" class="primary" href="#">Baixar Word</a>
-        <button id="purge" style="background:#555;color:#fff">Encerrar e limpar</button>
+      <!-- Coluna direita -->
+      <div class="card">
+        <div class="presentes-bar">
+          <h3 class="presentes-title">Presentes</h3>
+          <span class="pill"><b>Total:</b> <span id="count">0</span></span>
+        </div>
+        <ul id="list" class="list list-margin"></ul>
+    .label-strong { font-weight:600; }
+    .qr-title { margin:6px 0 0; }
+    .exports-hide { display:none; }
+    .presentes-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .presentes-title { margin:0; }
+    .list-margin { margin-top:8px; }
       </div>
-    </div>
-
-    <div class="card" style="flex:1">
-      <h3>Presentes</h3>
-      <ul id="list"></ul>
-      <p><b>Total:</b> <span id="count">0</span></p>
     </div>
   </div>
 
-  <!-- Toast container -->
   <div id="toast" class="toast"></div>
 
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script>
+    // ===== Mensagens centralizadas
+    const MSG = {
+      NEED_NAME: 'Informe o nome da aula',
+      GEO_REQUIRED: 'Permita a localização para iniciar',
+      START_OK: '✅ Chamada iniciada',
+      CLOSE_OK: '✅ Chamada encerrada',
+      LOC_OK: '✅ Local atualizado',
+      LOC_ERR: 'Erro ao atualizar local',
+      NEW_OK: '✅ Nova chamada iniciada',
+      PURGE_OK: '✅ Sessão limpa',
+      PURGE_ERR: 'Erro ao limpar',
+      CLOSE_ERR: 'Erro ao fechar chamada',
+      START_ERR: 'Erro ao iniciar',
+    };
+
+    // ===== Tema
+    const themeToggle = document.getElementById('themeToggle');
+    themeToggle.onclick = () => {
+      const html = document.documentElement;
+      html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('qr-theme', html.dataset.theme);
+    };
+    (function initTheme(){
+      const saved = localStorage.getItem('qr-theme');
+      document.documentElement.dataset.theme = saved || 'light';
+    })();
+
+    // ===== Toast
+    let toastTimer=null;
+    function showToast(t){
+      const el=document.getElementById('toast');
+      el.textContent=t; el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer=setTimeout(()=>el.classList.remove('show'), 2600);
+    }
+
+    // ===== Elementos
     const startBtn = document.getElementById('start');
     const lessonInput = document.getElementById('lesson');
-    const live = document.getElementById('live');
     const qrDiv = document.getElementById('qr');
     const list = document.getElementById('list');
     const count = document.getElementById('count');
@@ -97,21 +235,13 @@
     let sessionId = null;
     let socket = null;
 
-    // Toast helper
-    let toastTimer = null;
-    function showToast(text) {
-      const el = document.getElementById('toast');
-      el.textContent = text;
-      el.classList.add('show');
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
-    }
-
+    // ===== Persistência simples
     const LS_KEY = 'qr-attendance:host';
     function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify({ sessionId, lessonName: lessonInput.value.trim() || '' })); }
     function clearState(){ localStorage.removeItem(LS_KEY); }
     function loadState(){ try { return JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch { return null; } }
 
+    // ===== Geo
     async function getLocation(){
       return new Promise((resolve, reject)=>{
         navigator.geolocation.getCurrentPosition(
@@ -122,19 +252,20 @@
       });
     }
 
-    function clearList(){
-      list.innerHTML = '';
-      count.textContent = '0';
-    }
-
+    // ===== Lista
+    function clearList(){ list.innerHTML=''; count.textContent='0'; }
     function addAttendee(a){
-      const li = document.createElement('li');
-      const dt = new Date(a.time);
-      li.textContent = `${a.name} — ${a.rgm} (${dt.toLocaleTimeString()})`;
+      const li=document.createElement('li');
+      const dt=new Date(a.time);
+      li.innerHTML = `
+        <span>${a.name} — <b>${a.rgm}</b></span>
+        <span class="pill">${dt.toLocaleTimeString()}</span>
+      `;
       list.prepend(li);
-      count.textContent = Number(count.textContent) + 1;
+      count.textContent = Number(count.textContent)+1;
     }
 
+    // ===== Socket
     function connectSocketAndListen(){
       if (socket) socket.disconnect();
       socket = io();
@@ -142,35 +273,30 @@
       socket.on('attendee:new', (a)=>addAttendee(a));
     }
 
+    // ===== Hidratação
     async function hydrateFromSnapshot(){
       const snapRes = await fetch('/api/sessions/' + sessionId);
       if (!snapRes.ok) {
-        clearState();
-        clearList();
-        exportsDiv.classList.add('hidden');
-        live.classList.add('hidden');
-        qrDiv.innerHTML = 'QR...';
-        joinLinkP.innerHTML = '';
+        clearState(); clearList();
+        exportsDiv.style.display='none';
+        joinLinkP.textContent=''; qrDiv.textContent='QR…';
         return;
       }
       const snap = await snapRes.json();
-      live.classList.remove('hidden');
-      lessonInput.value = snap.name || '';
 
-      // redesenha o QR ao hidratar (cobre refresh)
       qrDiv.innerHTML = `<img alt="QR" src="/api/sessions/${sessionId}/qr.png" width="256" height="256"/>`;
       const joinUrl = `${location.origin}/join.html?id=${snap.id}`;
-      joinLinkP.innerHTML = `<small>Link: <a href="${joinUrl}" target="_blank">${joinUrl}</a></small>`;
+      joinLinkP.innerHTML = `Link para alunos: <a href="${joinUrl}" target="_blank">${joinUrl}</a>`;
 
       clearList();
       for (const a of snap.attendees) addAttendee(a);
 
       if (snap.active === false) {
-        exportsDiv.classList.remove('hidden');
+        exportsDiv.style.display='flex';
         dlXlsx.href = '/api/sessions/' + sessionId + '/export.xlsx';
         dlDocx.href = '/api/sessions/' + sessionId + '/export.docx';
       } else {
-        exportsDiv.classList.add('hidden');
+        exportsDiv.style.display='none';
       }
 
       connectSocketAndListen();
@@ -178,12 +304,13 @@
 
     window.addEventListener('load', async ()=>{
       const saved = loadState();
-      if (saved && saved.sessionId) { sessionId = saved.sessionId; await hydrateFromSnapshot(); }
+      if (saved && saved.sessionId) { sessionId = saved.sessionId; lessonInput.value = saved.lessonName || ''; await hydrateFromSnapshot(); }
     });
 
+    // ===== Ações
     startBtn.onclick = async ()=>{
       const name = lessonInput.value.trim();
-      if (!name) { alert('Digite o nome da aula'); return; }
+      if (!name) { showToast(MSG.NEED_NAME); return; }
       try {
         const loc = await getLocation();
         const resp = await fetch('/api/sessions', {
@@ -191,32 +318,29 @@
           body: JSON.stringify({ name, lat:loc.lat, lng:loc.lng })
         });
         const data = await resp.json();
-        if (!resp.ok) { alert(data.error || 'Erro'); return; }
+        if (!resp.ok) { showToast(data.error || MSG.START_ERR); return; }
 
         sessionId = data.id; saveState();
-        live.classList.remove('hidden');
         qrDiv.innerHTML = `<img alt="QR" src="${data.qrPng}" width="256" height="256"/>`;
-        joinLinkP.innerHTML = `<small>Link: <a href="${data.joinUrl}" target="_blank">${data.joinUrl}</a></small>`;
+        joinLinkP.innerHTML = `Link para alunos: <a href="${data.joinUrl}" target="_blank">${data.joinUrl}</a>`;
 
         connectSocketAndListen();
-
         const snap = await fetch('/api/sessions/' + sessionId).then(r=>r.json());
-        clearList();
-        for (const a of snap.attendees) addAttendee(a);
+        clearList(); for (const a of snap.attendees) addAttendee(a);
 
-        showToast('✅ Chamada iniciada');
-      } catch(e){ console.error(e); alert('Precisamos da sua localização para iniciar.'); }
+        showToast(MSG.START_OK);
+      } catch(e){ console.error(e); showToast(MSG.GEO_REQUIRED); }
     };
 
     closeBtn.onclick = async ()=>{
       if (!sessionId) return;
       const r = await fetch('/api/sessions/' + sessionId + '/close', { method:'POST' });
-      if (!r.ok) { alert('Não foi possível fechar a chamada'); return; }
-      exportsDiv.classList.remove('hidden');
+      if (!r.ok) { showToast(MSG.CLOSE_ERR); return; }
+      exportsDiv.style.display='flex';
       dlXlsx.href = '/api/sessions/' + sessionId + '/export.xlsx';
       dlDocx.href = '/api/sessions/' + sessionId + '/export.docx';
       saveState();
-      showToast('✅ Chamada encerrada com sucesso');
+      showToast(MSG.CLOSE_OK);
     };
 
     recenterBtn.onclick = async ()=>{
@@ -224,19 +348,12 @@
       try {
         const loc = await getLocation();
         const r = await fetch('/api/sessions/' + sessionId + '/location', {
-          method:'PATCH',
-          headers:{'Content-Type':'application/json'},
+          method:'PATCH', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ lat: loc.lat, lng: loc.lng })
         });
-        if (!r.ok) {
-          const t = await r.text();
-          alert('Não foi possível atualizar o local: ' + t);
-          return;
-        }
-        showToast('✅ Local da chamada atualizado');
-      } catch (e) {
-        alert('Precisamos da sua localização para atualizar o centro da chamada.');
-      }
+        if (!r.ok) { showToast(MSG.LOC_ERR); return; }
+        showToast(MSG.LOC_OK);
+      } catch (e) { showToast(MSG.GEO_REQUIRED); }
     };
 
     newBtn.onclick = async ()=>{
@@ -250,36 +367,30 @@
           body: JSON.stringify({ name, lat:loc.lat, lng:loc.lng })
         });
         const data = await resp.json();
-        if (!resp.ok) { alert(data.error || 'Erro'); return; }
+        if (!resp.ok) { showToast(data.error || MSG.START_ERR); return; }
 
         clearList();
         sessionId = data.id; lessonInput.value = name; saveState();
-        live.classList.remove('hidden');
         qrDiv.innerHTML = `<img alt="QR" src="${data.qrPng}" width="256" height="256"/>`;
-        joinLinkP.innerHTML = `<small>Link: <a href="${data.joinUrl}" target="_blank">${data.joinUrl}</a></small>`;
+        joinLinkP.innerHTML = `Link para alunos: <a href="${data.joinUrl}" target="_blank">${data.joinUrl}</a>`;
 
         connectSocketAndListen();
-
         const snap = await fetch('/api/sessions/' + sessionId).then(r=>r.json());
-        clearList();
-        for (const a of snap.attendees) addAttendee(a);
+        clearList(); for (const a of snap.attendees) addAttendee(a);
 
-        showToast('✅ Nova chamada iniciada');
-      } catch(e){ console.error(e); alert('Precisamos da sua localização para iniciar a nova chamada.'); }
+        showToast(MSG.NEW_OK);
+      } catch(e){ console.error(e); showToast(MSG.GEO_REQUIRED); }
     };
 
     purgeBtn.onclick = async ()=>{
       if (!sessionId) return;
       if (!confirm('Tem certeza? Isso apaga todos os dados desta chamada do servidor.')) return;
       const r = await fetch('/api/sessions/' + sessionId + '/purge', { method:'POST' });
-      if (!r.ok) { alert('Não foi possível limpar.'); return; }
-      clearState();
-      clearList();
-      exportsDiv.classList.add('hidden');
-      live.classList.add('hidden');
-      qrDiv.innerHTML = 'QR...';
-      joinLinkP.innerHTML = '';
-      showToast('✅ Sessão encerrada e limpa');
+      if (!r.ok) { showToast(MSG.PURGE_ERR); return; }
+      clearState(); clearList();
+      exportsDiv.style.display='none';
+      qrDiv.textContent='QR…'; joinLinkP.textContent='';
+      showToast(MSG.PURGE_OK);
     };
   </script>
 </body>
