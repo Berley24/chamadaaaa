@@ -15,6 +15,28 @@
     button.primary { background: black; color: white; }
     .hidden { display:none; }
     a.primary { padding: 10px 16px; border-radius: 8px; background: black; color: white; text-decoration: none; display: inline-block; }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 24px;
+      background: #333;
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 8px;
+      box-shadow: 0 6px 20px rgba(0,0,0,.2);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .3s ease, bottom .3s ease;
+      z-index: 9999;
+      font-size: 14px;
+    }
+    .toast.show {
+      opacity: 1;
+      bottom: 40px;
+    }
   </style>
 </head>
 <body>
@@ -52,6 +74,9 @@
     </div>
   </div>
 
+  <!-- Toast container -->
+  <div id="toast" class="toast"></div>
+
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script>
     const startBtn = document.getElementById('start');
@@ -71,6 +96,16 @@
 
     let sessionId = null;
     let socket = null;
+
+    // Toast helper
+    let toastTimer = null;
+    function showToast(text) {
+      const el = document.getElementById('toast');
+      el.textContent = text;
+      el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+    }
 
     const LS_KEY = 'qr-attendance:host';
     function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify({ sessionId, lessonName: lessonInput.value.trim() || '' })); }
@@ -168,6 +203,8 @@
         const snap = await fetch('/api/sessions/' + sessionId).then(r=>r.json());
         clearList();
         for (const a of snap.attendees) addAttendee(a);
+
+        showToast('✅ Chamada iniciada');
       } catch(e){ console.error(e); alert('Precisamos da sua localização para iniciar.'); }
     };
 
@@ -179,6 +216,7 @@
       dlXlsx.href = '/api/sessions/' + sessionId + '/export.xlsx';
       dlDocx.href = '/api/sessions/' + sessionId + '/export.docx';
       saveState();
+      showToast('✅ Chamada encerrada com sucesso');
     };
 
     recenterBtn.onclick = async ()=>{
@@ -195,7 +233,7 @@
           alert('Não foi possível atualizar o local: ' + t);
           return;
         }
-        alert('Local da chamada atualizado com sucesso!');
+        showToast('✅ Local da chamada atualizado');
       } catch (e) {
         alert('Precisamos da sua localização para atualizar o centro da chamada.');
       }
@@ -225,6 +263,8 @@
         const snap = await fetch('/api/sessions/' + sessionId).then(r=>r.json());
         clearList();
         for (const a of snap.attendees) addAttendee(a);
+
+        showToast('✅ Nova chamada iniciada');
       } catch(e){ console.error(e); alert('Precisamos da sua localização para iniciar a nova chamada.'); }
     };
 
@@ -239,7 +279,7 @@
       live.classList.add('hidden');
       qrDiv.innerHTML = 'QR...';
       joinLinkP.innerHTML = '';
-      alert('Sessão encerrada e limpa.');
+      showToast('✅ Sessão encerrada e limpa');
     };
   </script>
 </body>
