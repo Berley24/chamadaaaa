@@ -121,6 +121,14 @@
       transition: opacity .25s ease, bottom .25s ease; z-index: 9999; font-size: 14px;
     }
     .toast.show { opacity: 1; bottom: 40px; }
+
+    /* Regras que estavam no meio do HTML */
+    .label-strong { font-weight:600; }
+    .qr-title { margin:6px 0 0; }
+    .exports-hide { display:none; }
+    .presentes-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .presentes-title { margin:0; }
+    .list-margin { margin-top:8px; }
   </style>
 </head>
 <body>
@@ -167,12 +175,6 @@
           <span class="pill"><b>Total:</b> <span id="count">0</span></span>
         </div>
         <ul id="list" class="list list-margin"></ul>
-    .label-strong { font-weight:600; }
-    .qr-title { margin:6px 0 0; }
-    .exports-hide { display:none; }
-    .presentes-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-    .presentes-title { margin:0; }
-    .list-margin { margin-top:8px; }
       </div>
     </div>
   </div>
@@ -385,11 +387,11 @@
     purgeBtn.onclick = async ()=>{
       if (!sessionId) return;
       if (!confirm('Tem certeza? Isso apaga todos os dados desta chamada do servidor.')) return;
-      const r = await fetch('/api/sessions/' + sessionId + '/purge', { method:'POST' });
+      const r = await fetch('/api/sessions/' + sessionId, { method:'DELETE' });
       if (!r.ok) { showToast(MSG.PURGE_ERR); return; }
-      clearState(); clearList();
-      exportsDiv.style.display='none';
+      clearList(); exportsDiv.style.display='none';
       qrDiv.textContent='QR…'; joinLinkP.textContent='';
+      clearState(); sessionId=null;
       showToast(MSG.PURGE_OK);
     };
   </script>

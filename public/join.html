@@ -80,13 +80,15 @@
       transition: opacity .25s ease, bottom .25s ease; z-index: 9999; font-size: 14px;
     }
     .toast.show { opacity: 1; bottom: 40px; }
+
+    /* a regra correta que estava solta no body */
+    h2.no-margin { margin: 0; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="title">
       <h2 class="no-margin">Confirmar Presença</h2>
-    h2.no-margin { margin: 0; }
       <button class="theme" id="themeToggle">Tema</button>
     </div>
 
@@ -214,7 +216,7 @@
             help.textContent = 'Você está fora do raio permitido desta chamada (30 m).';
             help.classList.remove('ok');
             showToast(MSG.TOAST_OUT);
-            // permite tentar de novo se aproximar
+            // reabilita para tentar de novo quando se aproximar
             sendBtn.disabled = false;
             sendBtn.textContent = prev;
           } else {
