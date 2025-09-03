@@ -144,7 +144,7 @@ app.patch('/api/sessions/:id/location', (req, res) => {
   return res.json({ ok: true });
 });
 
-// aluno entra (validação 30m + logs)
+// aluno entra (validação 100m + logs)
 app.post('/api/sessions/:id/join', (req, res) => {
   const s = sessions.get(req.params.id);
   if (!s) return res.status(404).json({ error: 'Sessão não encontrada' });
@@ -161,9 +161,9 @@ app.post('/api/sessions/:id/join', (req, res) => {
     `prof=(${s.lat.toFixed(6)},${s.lng.toFixed(6)}) aluno=(${lat.toFixed(6)},${lng.toFixed(6)})`
   );
 
-  // RAIO INEGOCIÁVEL: 30m
-  if (dist > 30) {
-    return res.status(403).json({ error: 'Fora do raio permitido (30m)' });
+  // RAIO INEGOCIÁVEL: 100m
+  if (dist > 100) {
+    return res.status(403).json({ error: 'Fora do raio permitido (100m)' });
   }
 
   const rgmKey = normRGM(rgm);

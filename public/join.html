@@ -213,7 +213,7 @@
             showToast(MSG.TOAST_DUP);
             // mantém desabilitado
           } else if (resp.status === 403) { // fora do raio
-            help.textContent = 'Você está fora do raio permitido desta chamada (30 m).';
+            help.textContent = 'Você está fora do raio permitido desta chamada (100 m).';
             help.classList.remove('ok');
             showToast(MSG.TOAST_OUT);
             // reabilita para tentar de novo quando se aproximar
